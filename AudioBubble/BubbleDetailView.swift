@@ -29,14 +29,18 @@ struct BubbleDetailView: View {
         init(audioData: BubbleSessionManager.ParticipantAudioData) {
             // Subscribe to changes in the audio data
             audioData.$isActive
+                .receive(on: DispatchQueue.main)
                 .sink { [weak self] newValue in
                     self?.isAudioActive = newValue
+                    print("isAudioActive updated to: \(newValue)")
                 }
                 .store(in: &cancellables)
             
             audioData.$levels
+                .receive(on: DispatchQueue.main)
                 .sink { [weak self] newValues in
                     self?.audioLevels = newValues
+                    //print("audioLevels updated to: \(newValues)")
                 }
                 .store(in: &cancellables)
         }
