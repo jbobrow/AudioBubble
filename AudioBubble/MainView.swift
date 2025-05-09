@@ -87,3 +87,9 @@ struct MainView: View {
         }
     }
 }
+
+// MARK: - MainView Previews
+
+#Preview {
+    MainView(username: "TestUser")
+}

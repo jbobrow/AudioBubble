@@ -31,3 +31,34 @@ struct AudioLevelMeterView: View {
         .animation(.easeInOut(duration: 0.2), value: isActive)
     }
 }
+
+// MARK: - AudioLevelMeterView Previews
+
+#Preview("Inactive", traits: .sizeThatFitsLayout) {
+    AudioLevelMeterView(isActive: false)
+        .padding()
+}
+
+#Preview("Active - Low", traits: .sizeThatFitsLayout) {
+    AudioLevelMeterView(
+        levels: [0.1, 0.2, 0.15, 0.2, 0.1],
+        isActive: true
+    )
+    .padding()
+}
+
+#Preview("Active - Medium", traits: .sizeThatFitsLayout) {
+    AudioLevelMeterView(
+        levels: [0.4, 0.5, 0.6, 0.5, 0.4],
+        isActive: true
+    )
+    .padding()
+}
+
+#Preview("Active - High", traits: .sizeThatFitsLayout) {
+    AudioLevelMeterView(
+        levels: [0.7, 0.8, 0.9, 0.8, 0.7],
+        isActive: true
+    )
+    .padding()
+}

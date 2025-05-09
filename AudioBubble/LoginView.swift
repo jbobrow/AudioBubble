@@ -41,3 +41,13 @@ struct LoginView: View {
         .padding()
     }
 }
+
+// MARK: - LoginView Previews
+
+#Preview {
+    LoginView(username: .constant("User123"), onLogin: {})
+}
+
+#Preview("Empty Username") {
+    LoginView(username: .constant(""), onLogin: {})
+}

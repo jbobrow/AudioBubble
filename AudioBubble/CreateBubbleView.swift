@@ -33,3 +33,13 @@ struct CreateBubbleView: View {
         }
     }
 }
+
+// MARK: - CreateBubbleView Previews
+
+#Preview {
+    CreateBubbleView(bubbleName: .constant("My New Bubble"), onCreate: {})
+}
+
+#Preview("Empty Name") {
+    CreateBubbleView(bubbleName: .constant(""), onCreate: {})
+}

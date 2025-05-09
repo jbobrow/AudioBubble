@@ -39,3 +39,18 @@ struct BubbleRowView: View {
         .padding(.vertical, 4)
     }
 }
+
+// MARK: - BubbleRowView Previews
+
+#Preview("Bubble Row", traits: .sizeThatFitsLayout) {
+    BubbleRowView(
+        bubble: AudioBubble(
+            id: "bubble-1",
+            name: "Test Bubble",
+            hostPeerID: MCPeerID(displayName: "Host User"),
+            participants: [MCPeerID(displayName: "User 1")]
+        ),
+        onJoin: {}
+    )
+    .padding()
+}

@@ -21,3 +21,15 @@ struct ContentView: View {
         }
     }
 }
+
+// MARK: - ContentView Previews
+
+#Preview("Light Mode") {
+    ContentView()
+        .preferredColorScheme(.light)
+}
+
+#Preview("Dark Mode") {
+    ContentView()
+        .preferredColorScheme(.dark)
+}

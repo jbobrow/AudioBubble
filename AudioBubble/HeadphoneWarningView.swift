@@ -24,3 +24,10 @@ struct HeadphoneWarningView: View {
         .padding(.horizontal)
     }
 }
+
+// MARK: - HeadphoneWarningView Previews
+
+#Preview("Headphone Warning", traits: .sizeThatFitsLayout) {
+    HeadphoneWarningView()
+        .padding()
+}

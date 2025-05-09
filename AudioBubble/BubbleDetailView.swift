@@ -181,3 +181,47 @@ struct BubbleDetailView: View {
         audioData.simulateActivity(active: Bool.random())
     }
 }
+
+// MARK: - BubbleDetailView Previews
+
+#Preview("Host View") {
+    let mockSessionManager = MockBubbleSessionManager()
+    let hostPeerID = MCPeerID(displayName: "Host User")
+    let bubble = AudioBubble(
+        id: "bubble-1",
+        name: "Test Bubble",
+        hostPeerID: hostPeerID,
+        participants: [
+            MCPeerID(displayName: "User 1"),
+            MCPeerID(displayName: "User 2")
+        ]
+    )
+    
+    return BubbleDetailView(
+        bubble: bubble,
+        isHost: true,
+        onLeave: {},
+        sessionManager: mockSessionManager
+    )
+}
+
+#Preview("Participant View") {
+    let mockSessionManager = MockBubbleSessionManager()
+    let hostPeerID = MCPeerID(displayName: "Host User")
+    let bubble = AudioBubble(
+        id: "bubble-1",
+        name: "Test Bubble",
+        hostPeerID: hostPeerID,
+        participants: [
+            MCPeerID(displayName: "User 1"),
+            MCPeerID(displayName: "User 2")
+        ]
+    )
+    
+    return BubbleDetailView(
+        bubble: bubble,
+        isHost: false,
+        onLeave: {},
+        sessionManager: mockSessionManager
+    )
+}

@@ -40,13 +40,13 @@ class BubbleSessionManager: NSObject, ObservableObject {
     private var remoteAudioData: [MCPeerID: ParticipantAudioData] = [:]
     
     // Each participant will have their own audio level data
-    class ParticipantAudioData: ObservableObject {
+    public class ParticipantAudioData: ObservableObject {
         @Published var levels: [CGFloat] = [0, 0, 0, 0, 0]
         @Published var isActive: Bool = false
         private var threshold: Float = 0.005 // Lower threshold to detect more audio
         
         // Update levels with new audio data
-        func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
+        public func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
             
@@ -92,7 +92,7 @@ class BubbleSessionManager: NSObject, ObservableObject {
         }
         
         // Simulate levels for demo/testing purposes
-        func simulateActivity(active: Bool) {
+        public func simulateActivity(active: Bool) {
             isActive = active
             
             if active {
@@ -114,7 +114,7 @@ class BubbleSessionManager: NSObject, ObservableObject {
     }
     
     // Get audio data for a specific peer
-    func getAudioDataForPeer(_ peerID: MCPeerID) -> ParticipantAudioData {
+    public func getAudioDataForPeer(_ peerID: MCPeerID) -> ParticipantAudioData {
         if peerID == myPeerID {
             return localAudioData
         } else if let data = remoteAudioData[peerID] {
@@ -123,6 +123,30 @@ class BubbleSessionManager: NSObject, ObservableObject {
             let newData = ParticipantAudioData()
             remoteAudioData[peerID] = newData
             return newData
+        }
+    }
+    
+    public var previewHeadphonesConnected: Bool {
+        get { return isHeadphonesConnected }
+        set { isHeadphonesConnected = newValue }
+    }
+    
+    public var currentPeerID: MCPeerID {
+        return myPeerID
+    }
+    
+    public func simulateAudioActivity(for peerID: MCPeerID, active: Bool, levels: [CGFloat]? = nil) {
+        let audioData = getAudioDataForPeer(peerID)
+        
+        if active {
+            if let customLevels = levels {
+                audioData.levels = customLevels
+            } else {
+                audioData.levels = (0..<5).map { _ in CGFloat.random(in: 0.3...1.0) }
+            }
+            audioData.isActive = true
+        } else {
+            audioData.isActive = false
         }
     }
     
