@@ -33,6 +33,69 @@ class BubbleSessionManager: NSObject, ObservableObject {
     private var inputNode: AVAudioInputNode?
     private var mixerNode: AVAudioMixerNode?
     private var cancellables = Set<AnyCancellable>()
+    private var peerPlayerNodes: [MCPeerID: AVAudioPlayerNode] = [:]
+    
+    // Audio Level Tracking
+    private var localAudioData = ParticipantAudioData()
+    private var remoteAudioData: [MCPeerID: ParticipantAudioData] = [:]
+    
+    // Each participant will have their own audio level data
+    class ParticipantAudioData: ObservableObject {
+        @Published var levels: [CGFloat] = [0, 0, 0, 0, 0]
+        @Published var isActive: Bool = false
+        private var threshold: Float = 0.03 // Silence threshold
+        
+        // Update levels with new audio data
+        func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
+            guard let channelData = buffer.floatChannelData?[0] else { return }
+            let frameLength = Int(buffer.frameLength)
+            
+            // Calculate RMS (root mean square) of the buffer to get amplitude
+            var sum: Float = 0
+            for i in 0..<frameLength {
+                let sample = channelData[i]
+                sum += sample * sample
+            }
+            let rms = sqrt(sum / Float(frameLength))
+            
+            // Determine if audio is active based on threshold
+            let newIsActive = rms > threshold
+            
+            // Only update if there's actual audio activity
+            if newIsActive {
+                // Generate new levels based on audio amplitude
+                // Normalize to 0.0-1.0 range with some amplification for visibility
+                let normalizedRms = min(rms * 5, 1.0) // Amplify but cap at 1.0
+                
+                // Create slightly varied levels for visual interest
+                DispatchQueue.main.async {
+                    self.levels = [
+                        CGFloat(normalizedRms * Float.random(in: 0.7...1.0)),
+                        CGFloat(normalizedRms * Float.random(in: 0.8...1.0)),
+                        CGFloat(normalizedRms * Float.random(in: 0.9...1.0)),
+                        CGFloat(normalizedRms * Float.random(in: 0.8...1.0)),
+                        CGFloat(normalizedRms * Float.random(in: 0.7...1.0))
+                    ]
+                    self.isActive = true
+                }
+            } else if self.isActive {
+                // If we were active but now silent, update state
+                DispatchQueue.main.async {
+                    self.isActive = false
+                }
+            }
+        }
+        
+        // Simulate levels for demo/testing purposes
+        func simulateActivity(active: Bool) {
+            isActive = active
+            
+            if active {
+                // Generate random levels for visualization
+                levels = (0..<5).map { _ in CGFloat.random(in: 0.3...1.0) }
+            }
+        }
+    }
     
     init(username: String) {
         self.myPeerID = MCPeerID(displayName: username)
@@ -43,6 +106,19 @@ class BubbleSessionManager: NSObject, ObservableObject {
         
         // Start observing for headphone connection
         monitorHeadphonesConnection()
+    }
+    
+    // Get audio data for a specific peer
+    func getAudioDataForPeer(_ peerID: MCPeerID) -> ParticipantAudioData {
+        if peerID == myPeerID {
+            return localAudioData
+        } else if let data = remoteAudioData[peerID] {
+            return data
+        } else {
+            let newData = ParticipantAudioData()
+            remoteAudioData[peerID] = newData
+            return newData
+        }
     }
     
     // MARK: - Public Methods
@@ -173,17 +249,25 @@ class BubbleSessionManager: NSObject, ObservableObject {
         // Configure audio format
         let format = inputNode?.outputFormat(forBus: 0)
         
-        // Only connect input to mixer if monitoring is enabled
-        // This determines whether users hear themselves
-        if isMonitoringEnabled, let inputNode = inputNode, let mixerNode = mixerNode, let format = format {
-            audioEngine.connect(inputNode, to: mixerNode, format: format)
-        }
+        // Create a separate node for local input monitoring
+        let monitorMixer = AVAudioMixerNode()
+        audioEngine.attach(monitorMixer)
         
-        // Install tap on the input node to get audio data for sending to peers
-        // This happens regardless of whether monitoring is enabled
-        inputNode?.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, time in
-            // Process and send audio data to peers
-            self?.processAndSendAudioBuffer(buffer)
+        // Always connect the input to the main mixer for capturing
+        if let inputNode = inputNode, let mixerNode = mixerNode, let format = format {
+            // Install tap on the input node to get audio data for sending to peers
+            inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, time in
+                // Process and send audio data to peers
+                self?.processAndSendAudioBuffer(buffer)
+            }
+            
+            // Only connect input to monitor mixer if monitoring is enabled
+            if isMonitoringEnabled {
+                audioEngine.connect(inputNode, to: monitorMixer, format: format)
+            }
+            
+            // Always connect monitor mixer to main mixer (the volume could be zero if no monitoring)
+            audioEngine.connect(monitorMixer, to: mixerNode, format: format)
         }
         
         do {
@@ -198,34 +282,48 @@ class BubbleSessionManager: NSObject, ObservableObject {
               let inputNode = inputNode,
               let mixerNode = mixerNode else { return }
         
-        // First, reset all connections
-        audioEngine.disconnectNodeInput(mixerNode)
+        // Find the monitor mixer node
+        let monitorMixer = audioEngine.outputConnectionPoints(for: inputNode, outputBus: 0)
+            .compactMap { $0.node as? AVAudioMixerNode }
+            .first
         
-        // Configure format
-        let format = inputNode.outputFormat(forBus: 0)
-        
-        // If monitoring is enabled, connect input to mixer so user can hear themselves
-        // Otherwise, don't connect input to mixer (user won't hear themselves)
-        if isMonitoringEnabled {
-            audioEngine.connect(inputNode, to: mixerNode, format: format)
+        // If we found the monitor mixer, disconnect and reconnect as needed
+        if let monitorMixer = monitorMixer {
+            audioEngine.disconnectNodeOutput(inputNode)
+            
+            let format = inputNode.outputFormat(forBus: 0)
+            
+            // If monitoring is enabled, connect input to monitor mixer
+            if isMonitoringEnabled {
+                audioEngine.connect(inputNode, to: monitorMixer, format: format)
+            }
+        } else {
+            // If no monitor mixer found, we need to recreate the audio engine
+            stopAudioEngine()
+            setupAudioEngine()
         }
-        
-        // Note: We're still tapping into the input node to capture audio data for sending to peers
-        // This doesn't affect whether the user hears themselves
     }
     
     private func stopAudioEngine() {
+        // Stop all player nodes
+        for playerNode in peerPlayerNodes.values {
+            playerNode.stop()
+            audioEngine?.detach(playerNode)
+        }
+        peerPlayerNodes.removeAll()
+        
         inputNode?.removeTap(onBus: 0)
         audioEngine?.stop()
         audioEngine = nil
     }
     
     private func processAndSendAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        // Convert buffer to data and send to connected peers
+        // Update local audio levels
+        localAudioData.updateWithBuffer(buffer)
+        
+        // Rest of the existing code to send buffer to peers...
         guard let session = session, !session.connectedPeers.isEmpty else { return }
         
-        // Convert buffer to data (simplified)
-        // In a real app, you'd compress this data and handle it more efficiently
         guard let data = buffer.floatChannelData?[0] else { return }
         let dataSize = Int(buffer.frameLength) * MemoryLayout<Float>.size
         let audioData = Data(bytes: data, count: dataSize)
@@ -238,19 +336,60 @@ class BubbleSessionManager: NSObject, ObservableObject {
     }
     
     private func receiveAudioData(_ data: Data, fromPeer peer: MCPeerID) {
-        // Process received audio data (simplified)
-        // In a real app, you'd decompress this data and handle it properly
-        guard let audioEngine = audioEngine, let mixerNode = mixerNode else { return }
+        // Get or create audio data for this peer
+        let peerAudioData = getAudioDataForPeer(peer)
         
-        // Convert data back to audio buffer and play through mixer
-        // This is a simplified example and would need more work in a real app
-        print("Received audio data from \(peer.displayName)")
+        // Convert data to audio buffer
+        let bufferSize = data.count / MemoryLayout<Float>.size
+        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)
         
-        // In a real implementation, you would:
-        // 1. Convert data back to an AVAudioPCMBuffer
-        // 2. Create a player node for this buffer
-        // 3. Connect player node to mixer
-        // 4. Schedule buffer for playback
+        guard let format = format,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(bufferSize)) else {
+            print("Failed to create buffer")
+            return
+        }
+        
+        // Copy data into buffer
+        data.withUnsafeBytes { (bufferPointer: UnsafeRawBufferPointer) -> Void in
+            if let address = bufferPointer.baseAddress {
+                buffer.frameLength = AVAudioFrameCount(bufferSize)
+                let audioBuffer = buffer.floatChannelData![0]
+                memcpy(audioBuffer, address, data.count)
+            }
+        }
+        
+        // Update the peer's audio levels
+        peerAudioData.updateWithBuffer(buffer)
+        
+        // Process audio for playback
+        guard let audioEngine = audioEngine, let mixerNode = mixerNode else {
+            print("Audio engine or mixer not available")
+            return
+        }
+        
+        // Get or create a player node for this peer
+        let playerNode: AVAudioPlayerNode
+        if let existingNode = peerPlayerNodes[peer] {
+            playerNode = existingNode
+        } else {
+            playerNode = AVAudioPlayerNode()
+            audioEngine.attach(playerNode)
+            audioEngine.connect(playerNode, to: mixerNode, format: format)
+            peerPlayerNodes[peer] = playerNode
+            
+            // Start the player
+            playerNode.play()
+        }
+        
+        // Schedule the buffer for playback
+        if playerNode.isPlaying {
+            playerNode.scheduleBuffer(buffer, completionHandler: nil)
+        } else {
+            playerNode.play()
+            playerNode.scheduleBuffer(buffer, completionHandler: nil)
+        }
+        
+        print("Playing audio data from \(peer.displayName)")
     }
 }
 
@@ -263,9 +402,12 @@ extension BubbleSessionManager: MCSessionDelegate {
             case .connected:
                 if let bubble = self.currentBubble {
                     var updatedBubble = bubble
-                    if !updatedBubble.participants.contains(peerID) {
+                    
+                    // Only add the peer if it's not already in the list and is not the host
+                    if !updatedBubble.participants.contains(peerID) && peerID != updatedBubble.hostPeerID {
                         updatedBubble.participants.append(peerID)
                     }
+                    
                     self.currentBubble = updatedBubble
                 }
                 self.isConnected = true

@@ -7,12 +7,40 @@
 
 import SwiftUI
 import MultipeerConnectivity
+import Combine
 
 struct BubbleDetailView: View {
     let bubble: AudioBubble
     let isHost: Bool
     var onLeave: () -> Void
     @ObservedObject var sessionManager: BubbleSessionManager
+    @State private var participantStates: [MCPeerID: ParticipantViewState] = [:]
+    
+    // Timer for simulating audio activity in preview/demo mode
+    @State private var simulationTimer: Timer? = nil
+    
+    // View state for each participant, including the host
+    class ParticipantViewState: ObservableObject {
+        @Published var isAudioActive: Bool = false
+        @Published var audioLevels: [CGFloat] = [0, 0, 0, 0, 0]
+        
+        private var cancellables = Set<AnyCancellable>()
+        
+        init(audioData: BubbleSessionManager.ParticipantAudioData) {
+            // Subscribe to changes in the audio data
+            audioData.$isActive
+                .sink { [weak self] newValue in
+                    self?.isAudioActive = newValue
+                }
+                .store(in: &cancellables)
+            
+            audioData.$levels
+                .sink { [weak self] newValues in
+                    self?.audioLevels = newValues
+                }
+                .store(in: &cancellables)
+        }
+    }
     
     var body: some View {
         VStack(spacing: 20) {
@@ -31,23 +59,6 @@ struct BubbleDetailView: View {
                     .font(.headline)
                     .padding(.top)
                 
-                // Animated sound waves
-                HStack(spacing: 4) {
-                    ForEach(0..<5) { _ in
-                        RoundedRectangle(cornerRadius: 2)
-                            .frame(width: 4, height: 20)
-                            .foregroundColor(.blue)
-                            .opacity(0.8)
-                            .animation(
-                                Animation.easeInOut(duration: 0.5)
-                                    .repeatForever()
-                                    .delay(Double.random(in: 0...0.5)),
-                                value: UUID()
-                            )
-                    }
-                }
-                .padding()
-                
                 // Monitoring toggle
                 Toggle("Monitor My Microphone", isOn: Binding(
                     get: { sessionManager.isMonitoringEnabled },
@@ -62,7 +73,10 @@ struct BubbleDetailView: View {
                     Text("Participants:")
                         .font(.headline)
                     
-                    ForEach([bubble.hostPeerID] + bubble.participants, id: \.self) { peer in
+                    // Get a unique list of participants
+                    let allPeers = getAllUniquePeers()
+                    
+                    ForEach(allPeers, id: \.self) { peer in
                         HStack {
                             Image(systemName: "person.fill")
                                 .foregroundColor(.blue)
@@ -77,10 +91,15 @@ struct BubbleDetailView: View {
                             
                             Spacer()
                             
-                            // Animated speaking indicator (simplified)
-                            Image(systemName: "waveform")
-                                .foregroundColor(.green)
-                                .opacity(Double.random(in: 0...1) > 0.7 ? 1.0 : 0.0)
+                            // Audio level meter
+                            if let viewState = participantStates[peer] {
+                                AudioLevelMeterView(
+                                    levels: viewState.audioLevels,
+                                    isActive: viewState.isAudioActive
+                                )
+                            } else {
+                                AudioLevelMeterView() // Default inactive state
+                            }
                         }
                         .padding(.vertical, 4)
                     }
@@ -104,5 +123,57 @@ struct BubbleDetailView: View {
             }
         }
         .padding()
+        .onAppear {
+            setupParticipantStates()
+            
+            // In preview/demo mode, set up a timer to simulate audio activity
+            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+                simulationTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
+                    simulateRandomActivity()
+                }
+            }
+        }
+        .onDisappear {
+            simulationTimer?.invalidate()
+            simulationTimer = nil
+        }
+    }
+    
+    private func setupParticipantStates() {
+        // Initialize states for all participants including host
+        let allPeers = [bubble.hostPeerID] + bubble.participants
+        
+        for peer in allPeers {
+            let audioData = sessionManager.getAudioDataForPeer(peer)
+            participantStates[peer] = ParticipantViewState(audioData: audioData)
+        }
+    }
+    
+    private func getAllUniquePeers() -> [MCPeerID] {
+        var uniquePeers = [MCPeerID]()
+        
+        // Always add the host first
+        uniquePeers.append(bubble.hostPeerID)
+        
+        // Add other participants if they're not the host
+        for participant in bubble.participants {
+            if !uniquePeers.contains(participant) {
+                uniquePeers.append(participant)
+            }
+        }
+        
+        return uniquePeers
+    }
+    
+    // For demo/preview mode only
+    private func simulateRandomActivity() {
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" else { return }
+        
+        let allPeers = [bubble.hostPeerID] + bubble.participants
+        guard let randomPeer = allPeers.randomElement() else { return }
+        
+        // Simulate activity for a random peer
+        let audioData = sessionManager.getAudioDataForPeer(randomPeer)
+        audioData.simulateActivity(active: Bool.random())
     }
 }
