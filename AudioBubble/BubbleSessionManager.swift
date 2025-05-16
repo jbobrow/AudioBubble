@@ -32,13 +32,15 @@ class BubbleSessionManager: NSObject, ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
     private var mixerNode: AVAudioMixerNode?
+    private var remoteAudioMixer: AVAudioMixerNode?
     private var cancellables = Set<AnyCancellable>()
     private var peerPlayerNodes: [MCPeerID: AVAudioPlayerNode] = [:]
+    private var opusCodec: OpusCodec?
     
     // Audio Level Tracking
     private var localAudioData = ParticipantAudioData()
     private var remoteAudioData: [MCPeerID: ParticipantAudioData] = [:]
-    
+        
     // Each participant will have their own audio level data
     public class ParticipantAudioData: ObservableObject {
         @Published var levels: [CGFloat] = [0, 0, 0, 0, 0]
@@ -221,8 +223,11 @@ class BubbleSessionManager: NSObject, ObservableObject {
     }
     
     // MARK: - Private Methods
-    
+        
     private func setupAudioSession() {
+        // setup Opus Codec
+        opusCodec = OpusCodec()
+        
         do {
             try audioSession.setCategory(.playAndRecord, options: [.allowBluetooth, .defaultToSpeaker])
             try audioSession.setActive(true)
@@ -280,9 +285,12 @@ class BubbleSessionManager: NSObject, ObservableObject {
             try audioSession.setCategory(.playAndRecord,
                                   options: [.allowBluetooth, .defaultToSpeaker, .mixWithOthers])
             try audioSession.setPreferredIOBufferDuration(0.005) // 5ms buffer for lower latency
+            try audioSession.setPreferredSampleRate(48000) // Match Opus sampleRate
             try audioSession.setActive(true)
         } catch {
             errorMessage = "Failed to set up audio session: \(error.localizedDescription)"
+            print("Audio session setup error: \(error)")
+            return
         }
         
         // Get the input and mixer nodes
@@ -290,70 +298,88 @@ class BubbleSessionManager: NSObject, ObservableObject {
         mixerNode = audioEngine.mainMixerNode
         
         guard let inputNode = inputNode,
-              let mixerNode = mixerNode else { return }
+              let mixerNode = mixerNode else {
+            print("Failed to get input or mixer nodes")
+            return
+        }
         
-        // Get the input format directly
-        let inputFormat = inputNode.inputFormat(forBus: 0)
+        // Ensure mixer volume is set to audible level
+        mixerNode.outputVolume = 1.0
         
-        // We'll use a consistent format throughout the audio graph
-        let processingFormat = AVAudioFormat(standardFormatWithSampleRate: inputFormat.sampleRate,
-                                            channels: 1)
+        // Use a consistent format throughout the audio graph
+        let processingFormat = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)
         
-        guard let processingFormat = processingFormat else { return }
+        guard let processingFormat = processingFormat else {
+            print("Failed to create processing format")
+            return
+        }
         
         print("Using audio format: \(processingFormat)")
         
-        // Create a separate node for local input monitoring
+        // Create a format converter node to handle any format conversions
+        let formatConverter = AVAudioMixerNode()
+        audioEngine.attach(formatConverter)
+        
+        // Create a monitor mixer for local monitoring (hearing yourself)
         let monitorMixer = AVAudioMixerNode()
         audioEngine.attach(monitorMixer)
         
-        // Install tap on the input node to get audio data for sending to peers
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: processingFormat) { [weak self] buffer, time in
-            // Process and send audio data to peers
+        // Create a remote audio mixer for incoming audio from peers
+        let remoteAudioMixer = AVAudioMixerNode()
+        audioEngine.attach(remoteAudioMixer)
+        
+        // CRITICAL FIX: Always connect input to format converter
+        // This ensures the tap has a proper audio graph connection
+        audioEngine.connect(inputNode, to: formatConverter, format: inputNode.outputFormat(forBus: 0))
+        
+        // Install tap AFTER connecting the input node
+        formatConverter.installTap(onBus: 0, bufferSize: 480, format: processingFormat) { [weak self] buffer, time in
             self?.processAndSendAudioBuffer(buffer)
         }
         
-        // Only connect input to monitor mixer if monitoring is enabled
+        // Connect format converter to monitor mixer if monitoring is enabled
         if isMonitoringEnabled {
-            audioEngine.connect(inputNode, to: monitorMixer, format: processingFormat)
+            audioEngine.connect(formatConverter, to: monitorMixer, format: processingFormat)
         }
         
-        // Always connect monitor mixer to main mixer
+        // Connect both mixers to the main mixer
         audioEngine.connect(monitorMixer, to: mixerNode, format: processingFormat)
+        audioEngine.connect(remoteAudioMixer, to: mixerNode, format: processingFormat)
+        
+        // Store reference to remote audio mixer for peer audio
+        self.remoteAudioMixer = remoteAudioMixer
         
         do {
             // Prepare the engine before starting
             audioEngine.prepare()
             try audioEngine.start()
+            print("Audio engine started successfully")
         } catch {
             errorMessage = "Failed to start audio engine: \(error.localizedDescription)"
+            print("Audio engine start error: \(error)")
         }
     }
     
     private func updateMonitoringState() {
         guard let audioEngine = audioEngine,
-              let inputNode = inputNode,
-              let mixerNode = mixerNode else { return }
+              let formatConverter = audioEngine.attachedNodes.first(where: { $0 is AVAudioMixerNode && $0 !== mixerNode && $0 !== remoteAudioMixer }) as? AVAudioMixerNode,
+              let monitorMixer = audioEngine.attachedNodes.first(where: { $0 is AVAudioMixerNode && $0 !== mixerNode && $0 !== remoteAudioMixer && $0 !== formatConverter }) as? AVAudioMixerNode else {
+            print("Could not find format converter or monitor mixer")
+            return
+        }
         
-        // Find the monitor mixer node
-        let monitorMixer = audioEngine.outputConnectionPoints(for: inputNode, outputBus: 0)
-            .compactMap { $0.node as? AVAudioMixerNode }
-            .first
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
         
-        // If we found the monitor mixer, disconnect and reconnect as needed
-        if let monitorMixer = monitorMixer {
-            audioEngine.disconnectNodeOutput(inputNode)
-            
-            let format = inputNode.outputFormat(forBus: 0)
-            
-            // If monitoring is enabled, connect input to monitor mixer
-            if isMonitoringEnabled {
-                audioEngine.connect(inputNode, to: monitorMixer, format: format)
-            }
-        } else {
-            // If no monitor mixer found, we need to recreate the audio engine
-            stopAudioEngine()
-            setupAudioEngine()
+        // Disconnect and reconnect monitor based on state
+        audioEngine.disconnectNodeOutput(formatConverter, bus: 0)
+        
+        // Always connect to main mixer via remoteAudioMixer
+        audioEngine.connect(remoteAudioMixer!, to: mixerNode!, format: format)
+        audioEngine.connect(monitorMixer, to: mixerNode!, format: format)
+        
+        // Connect to monitor mixer only if monitoring is enabled
+        if isMonitoringEnabled {
+            audioEngine.connect(formatConverter, to: monitorMixer, format: format)
         }
     }
     
@@ -363,8 +389,17 @@ class BubbleSessionManager: NSObject, ObservableObject {
             playerNode.stop()
         }
         
-        // Remove input tap if it exists
+        // Remove taps
         inputNode?.removeTap(onBus: 0)
+        
+        // Find and remove tap from format converter
+        if let audioEngine = audioEngine {
+            for node in audioEngine.attachedNodes {
+                if let mixerNode = node as? AVAudioMixerNode, mixerNode !== self.mixerNode && mixerNode !== self.remoteAudioMixer {
+                    mixerNode.removeTap(onBus: 0)
+                }
+            }
+        }
         
         // If engine is running, stop it
         if let engine = audioEngine, engine.isRunning {
@@ -383,6 +418,7 @@ class BubbleSessionManager: NSObject, ObservableObject {
         audioEngine = nil
         inputNode = nil
         mixerNode = nil
+        remoteAudioMixer = nil
     }
     
     private func processAndSendAudioBuffer(_ buffer: AVAudioPCMBuffer) {
@@ -390,73 +426,172 @@ class BubbleSessionManager: NSObject, ObservableObject {
         localAudioData.updateWithBuffer(buffer)
         
         // Send buffer to peers
-        guard let session = session, !session.connectedPeers.isEmpty else { return }
+        guard let session = session, !session.connectedPeers.isEmpty else {
+            print("No session or no connected peers")
+            return
+        }
         
-        guard let data = buffer.floatChannelData?[0] else { return }
-        let dataSize = Int(buffer.frameLength) * MemoryLayout<Float>.size
-        let audioData = Data(bytes: data, count: dataSize)
+        print("Processing audio buffer: frameLength=\(buffer.frameLength), format=\(buffer.format)")
         
-        do {
-            // Use unreliable delivery for lower latency
-            try session.send(audioData, toPeers: session.connectedPeers, with: .unreliable)
-        } catch {
-            errorMessage = "Failed to send audio data: \(error.localizedDescription)"
+        // Encode using Opus
+        if let encodedData = opusCodec?.encode(buffer: buffer) {
+            print("Successfully encoded \(encodedData.count) bytes with Opus")
+            
+            // Add packet header with sequence number for tracking packet loss
+            var dataPacket = Data()
+            let seqNumber = UInt32(Date().timeIntervalSince1970 * 1000) // Simple sequence number
+            withUnsafeBytes(of: seqNumber) { seqBytes in
+                dataPacket.append(contentsOf: seqBytes)
+            }
+            dataPacket.append(encodedData)
+            
+            print("Sending \(dataPacket.count) bytes to \(session.connectedPeers.count) peers")
+            
+            do {
+                // Use unreliable delivery for lower latency
+                try session.send(dataPacket, toPeers: session.connectedPeers, with: .unreliable)
+            } catch {
+                errorMessage = "Failed to send audio data: \(error.localizedDescription)"
+                print("Send error: \(error)")
+            }
+        } else {
+            print("Failed to encode audio data with Opus")
         }
     }
     
     private func receiveAudioData(_ data: Data, fromPeer peer: MCPeerID) {
+        print("Received \(data.count) bytes from peer: \(peer.displayName)")
+        
         // Get or create audio data for this peer
         let peerAudioData = getAudioDataForPeer(peer)
         
-        guard let audioEngine = audioEngine, let mixerNode = mixerNode else {
-            print("Audio engine or mixer not available")
+        guard let audioEngine = audioEngine,
+              let remoteAudioMixer = remoteAudioMixer else {
+            print("Audio engine or remote mixer not available")
             return
         }
         
-        // Convert data to audio buffer
-        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)
-        
-        guard let format = format,
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(data.count / MemoryLayout<Float>.size)) else {
-            print("Failed to create buffer")
+        // Extract sequence number and opus data
+        guard data.count > 4 else {
+            print("Received malformed packet (too small)")
             return
         }
         
-        // Copy data into buffer
-        data.withUnsafeBytes { (bufferPointer: UnsafeRawBufferPointer) -> Void in
-            if let address = bufferPointer.baseAddress {
-                buffer.frameLength = AVAudioFrameCount(data.count / MemoryLayout<Float>.size)
-                let audioBuffer = buffer.floatChannelData![0]
-                memcpy(audioBuffer, address, data.count)
-            }
+        let seqNumber = data.withUnsafeBytes { $0.load(as: UInt32.self) }
+        let opusData = data.subdata(in: 4..<data.count)
+        
+        print("Extracted sequence number: \(seqNumber), opus data size: \(opusData.count) bytes")
+        
+        // Decode Opus data
+        guard let buffer = opusCodec?.decode(data: opusData) else {
+            print("Failed to decode audio data from peer: \(peer.displayName)")
+            return
         }
+        
+        print("Successfully decoded to PCM buffer: frameLength=\(buffer.frameLength)")
         
         // Update the peer's audio levels
         peerAudioData.updateWithBuffer(buffer)
         
-        // Get or create a player node for this peer
+        // Use consistent processing format
+        let processingFormat = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
+        
+        // Check if the player node exists for this peer
         if let existingNode = peerPlayerNodes[peer] {
-            // Use existing player node
-            existingNode.scheduleBuffer(buffer, at: nil, options: .interruptsAtLoop, completionHandler: nil)
+            print("Using existing player node for peer: \(peer.displayName)")
+            
+            // Convert buffer to processing format if needed
+            let convertedBuffer: AVAudioPCMBuffer
+            if buffer.format == processingFormat {
+                convertedBuffer = buffer
+            } else {
+                guard let converted = convertAudioBuffer(buffer, to: processingFormat) else {
+                    print("Failed to convert audio format")
+                    return
+                }
+                convertedBuffer = converted
+            }
+            
+            existingNode.scheduleBuffer(convertedBuffer, at: nil, options: .interruptsAtLoop, completionHandler: {
+                print("Buffer completed playback for peer: \(peer.displayName)")
+            })
+            
+            // Make sure the node is playing
+            if !existingNode.isPlaying {
+                existingNode.play()
+                print("Started player node for peer: \(peer.displayName)")
+            }
         } else {
+            print("Creating new player node for peer: \(peer.displayName)")
+            
             // Create new player node
             let playerNode = AVAudioPlayerNode()
             
-            // Remember to attach the node BEFORE connecting it
+            // Attach the node BEFORE connecting it
             audioEngine.attach(playerNode)
             
-            // Connect with the proper format
-            audioEngine.connect(playerNode, to: mixerNode, format: format)
+            // Connect to the remote audio mixer with consistent format
+            audioEngine.connect(playerNode, to: remoteAudioMixer, format: processingFormat)
             
             // Store for future use
             peerPlayerNodes[peer] = playerNode
             
+            // Convert buffer to processing format if needed
+            let convertedBuffer: AVAudioPCMBuffer
+            if buffer.format == processingFormat {
+                convertedBuffer = buffer
+            } else {
+                guard let converted = convertAudioBuffer(buffer, to: processingFormat) else {
+                    print("Failed to convert audio format")
+                    return
+                }
+                convertedBuffer = converted
+            }
+            
             // Start playing and schedule buffer
             playerNode.play()
-            playerNode.scheduleBuffer(buffer, at: nil, options: .interruptsAtLoop, completionHandler: nil)
+            playerNode.scheduleBuffer(convertedBuffer, at: nil, options: .interruptsAtLoop, completionHandler: {
+                print("Buffer completed playback for peer: \(peer.displayName)")
+            })
             
-            print("Created new player node for peer: \(peer.displayName)")
+            print("Player node created and started for peer: \(peer.displayName)")
         }
+        
+        // Make sure the audio engine is running
+        if !audioEngine.isRunning {
+            do {
+                try audioEngine.start()
+                print("Started audio engine")
+            } catch {
+                print("Failed to start audio engine: \(error)")
+            }
+        }
+    }
+    
+    // Helper method to convert audio buffer formats
+    private func convertAudioBuffer(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let converter = AVAudioConverter(from: buffer.format, to: format) else {
+            print("Could not create audio converter")
+            return nil
+        }
+        
+        guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: buffer.frameLength) else {
+            print("Could not create converted buffer")
+            return nil
+        }
+        
+        var error: NSError?
+        converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        
+        if let error = error {
+            print("Audio conversion error: \(error)")
+            return nil
+        }
+        
+        return convertedBuffer
     }
 }
 
