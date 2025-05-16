@@ -22,7 +22,7 @@ struct BubbleDetailView: View {
     // View state for each participant, including the host
     class ParticipantViewState: ObservableObject {
         @Published var isAudioActive: Bool = false
-        @Published var audioLevels: [CGFloat] = [0, 0, 0, 0, 0]
+        @Published var audioLevel: CGFloat = 0.0  // Single value instead of array
         
         private var cancellables = Set<AnyCancellable>()
         
@@ -32,15 +32,13 @@ struct BubbleDetailView: View {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] newValue in
                     self?.isAudioActive = newValue
-                    print("isAudioActive updated to: \(newValue)")
                 }
                 .store(in: &cancellables)
             
-            audioData.$levels
+            audioData.$level
                 .receive(on: DispatchQueue.main)
-                .sink { [weak self] newValues in
-                    self?.audioLevels = newValues
-                    //print("audioLevels updated to: \(newValues)")
+                .sink { [weak self] newValue in
+                    self?.audioLevel = newValue
                 }
                 .store(in: &cancellables)
         }
@@ -71,6 +69,7 @@ struct BubbleDetailView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(10)
+                .padding(.horizontal)
                 
                 // Participants
                 VStack(alignment: .leading) {
@@ -95,14 +94,27 @@ struct BubbleDetailView: View {
                             
                             Spacer()
                             
-                            // Audio level meter
+                            // Simple audio indicator - choose one of these:
                             if let viewState = participantStates[peer] {
-                                AudioLevelMeterView(
-                                    levels: viewState.audioLevels,
-                                    isActive: viewState.isAudioActive
+                                // Option 1: Circle indicator
+                                SimpleAudioIndicator(
+                                    isActive: viewState.isAudioActive,
+                                    level: viewState.audioLevel
                                 )
+                                
+                                // Option 2: Bar indicator (uncomment to use instead)
+                                // SimpleAudioBar(
+                                //     isActive: viewState.isAudioActive,
+                                //     level: viewState.audioLevel
+                                // )
+                                
+                                // Option 3: Wave indicator (uncomment to use instead)
+                                // SimpleWaveIndicator(
+                                //     isActive: viewState.isAudioActive,
+                                //     level: viewState.audioLevel
+                                // )
                             } else {
-                                AudioLevelMeterView() // Default inactive state
+                                SimpleAudioIndicator(isActive: false, level: 0.0)
                             }
                         }
                         .padding(.vertical, 4)
@@ -178,7 +190,9 @@ struct BubbleDetailView: View {
         
         // Simulate activity for a random peer
         let audioData = sessionManager.getAudioDataForPeer(randomPeer)
-        audioData.simulateActivity(active: Bool.random())
+        let isActive = Bool.random()
+        let level = isActive ? CGFloat.random(in: 0.3...1.0) : 0.0
+        audioData.simulateActivity(active: isActive, level: level)
     }
 }
 

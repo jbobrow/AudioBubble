@@ -41,16 +41,17 @@ class MockBubbleSessionManager: BubbleSessionManager {
             let isActive = Bool.random()
             
             if isActive {
-                // Generate random levels between 0.3 and 1.0
-                let levels: [CGFloat] = (0..<5).map { _ in CGFloat.random(in: 0.3...1.0) }
+                // Generate random level between 0.3 and 1.0
+                let level = CGFloat.random(in: 0.3...1.0)
                 
                 DispatchQueue.main.async {
-                    audioData.levels = levels
+                    audioData.level = level
                     audioData.isActive = true
                 }
             } else {
                 DispatchQueue.main.async {
                     audioData.isActive = false
+                    audioData.level = 0.0
                 }
             }
         }

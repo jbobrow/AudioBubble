@@ -43,16 +43,19 @@ class BubbleSessionManager: NSObject, ObservableObject {
         
     // Each participant will have their own audio level data
     public class ParticipantAudioData: ObservableObject {
-        @Published var levels: [CGFloat] = [0, 0, 0, 0, 0]
+        @Published var level: CGFloat = 0.0         // Single value 0.0 to 1.0
         @Published var isActive: Bool = false
-        private var threshold: Float = 0.005 // Lower threshold to detect more audio
+        private var threshold: Float = 0.01
         
-        // Update levels with new audio data
+        // Smoothing for level changes
+        private var smoothingFactor: CGFloat = 0.3
+        
+        // Update with new audio data
         public func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
             
-            // Calculate RMS (root mean square) of the buffer to get amplitude
+            // Calculate RMS (root mean square) of the buffer
             var sum: Float = 0
             for i in 0..<frameLength {
                 let sample = channelData[i]
@@ -60,46 +63,30 @@ class BubbleSessionManager: NSObject, ObservableObject {
             }
             let rms = sqrt(sum / Float(frameLength))
             
-            // Debug output
-            print("Audio RMS: \(rms), threshold: \(threshold)")
-            
-            // Determine if audio is active based on threshold
+            // Determine if audio is active
             let newIsActive = rms > threshold
             
-            // Generate new levels based on audio amplitude
-            // Normalize to 0.0-1.0 range with more amplification for visibility
-            let normalizedRms = min(rms * 10, 1.0) // More amplification
+            // Normalize to 0.0-1.0 range with reasonable scaling
+            let normalizedLevel = min(rms * 20, 1.0) // Adjust multiplier as needed
             
             DispatchQueue.main.async {
-                // Update levels even if not active, just make them small
+                self.isActive = newIsActive
+                
                 if newIsActive {
-                    self.levels = [
-                        CGFloat(normalizedRms * Float.random(in: 0.7...1.0)),
-                        CGFloat(normalizedRms * Float.random(in: 0.8...1.0)),
-                        CGFloat(normalizedRms * Float.random(in: 0.9...1.0)),
-                        CGFloat(normalizedRms * Float.random(in: 0.8...1.0)),
-                        CGFloat(normalizedRms * Float.random(in: 0.7...1.0))
-                    ]
-                    self.isActive = true
+                    // Smooth the level changes for less jittery animation
+                    self.level = self.level * (1 - self.smoothingFactor) + CGFloat(normalizedLevel) * self.smoothingFactor
                 } else {
-                    // Gradually reduce levels when not active
-                    self.levels = self.levels.map { max($0 * 0.8, 0.0) }
-                    
-                    // Only set inactive when levels are low enough
-                    if self.levels.allSatisfy({ $0 < 0.1 }) {
-                        self.isActive = false
-                    }
+                    // Gradually fade out when inactive
+                    self.level = max(self.level * 0.8, 0.0)
                 }
             }
         }
         
-        // Simulate levels for demo/testing purposes
-        public func simulateActivity(active: Bool) {
-            isActive = active
-            
-            if active {
-                // Generate random levels for visualization
-                levels = (0..<5).map { _ in CGFloat.random(in: 0.3...1.0) }
+        // Simple simulation for previews
+        public func simulateActivity(active: Bool, level: CGFloat = 0.7) {
+            DispatchQueue.main.async {
+                self.isActive = active
+                self.level = active ? level : 0.0
             }
         }
     }
@@ -137,18 +124,15 @@ class BubbleSessionManager: NSObject, ObservableObject {
         return myPeerID
     }
     
-    public func simulateAudioActivity(for peerID: MCPeerID, active: Bool, levels: [CGFloat]? = nil) {
+    // Updated simulateAudioActivity method in BubbleSessionManager
+    public func simulateAudioActivity(for peerID: MCPeerID, active: Bool, level: CGFloat? = nil) {
         let audioData = getAudioDataForPeer(peerID)
         
         if active {
-            if let customLevels = levels {
-                audioData.levels = customLevels
-            } else {
-                audioData.levels = (0..<5).map { _ in CGFloat.random(in: 0.3...1.0) }
-            }
-            audioData.isActive = true
+            let customLevel = level ?? CGFloat.random(in: 0.3...1.0)
+            audioData.simulateActivity(active: true, level: customLevel)
         } else {
-            audioData.isActive = false
+            audioData.simulateActivity(active: false, level: 0.0)
         }
     }
     
