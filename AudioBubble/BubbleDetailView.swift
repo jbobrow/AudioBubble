@@ -141,17 +141,9 @@ struct BubbleDetailView: View {
         .padding()
         .onAppear {
             setupParticipantStates()
-            
-            // In preview/demo mode, set up a timer to simulate audio activity
-            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-                simulationTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
-                    simulateRandomActivity()
-                }
-            }
         }
         .onDisappear {
-            simulationTimer?.invalidate()
-            simulationTimer = nil
+            // nothing needed here at the moment
         }
     }
     
@@ -179,20 +171,6 @@ struct BubbleDetailView: View {
         }
         
         return uniquePeers
-    }
-    
-    // For demo/preview mode only
-    private func simulateRandomActivity() {
-        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" else { return }
-        
-        let allPeers = [bubble.hostPeerID] + bubble.participants
-        guard let randomPeer = allPeers.randomElement() else { return }
-        
-        // Simulate activity for a random peer
-        let audioData = sessionManager.getAudioDataForPeer(randomPeer)
-        let isActive = Bool.random()
-        let level = isActive ? CGFloat.random(in: 0.3...1.0) : 0.0
-        audioData.simulateActivity(active: isActive, level: level)
     }
 }
 

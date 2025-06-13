@@ -42,15 +42,24 @@ class BubbleSessionManager: NSObject, ObservableObject {
         
     // Each participant will have their own audio level data
     public class ParticipantAudioData: ObservableObject {
-        @Published var level: CGFloat = 0.0         // Single value 0.0 to 1.0
+        @Published var level: CGFloat = 0.0
         @Published var isActive: Bool = false
         private var threshold: Float = 0.01
-        
-        // Smoothing for level changes
         private var smoothingFactor: CGFloat = 0.3
+        private var isPreviewMode = false
         
-        // Update with new audio data
+        public func simulateActivity(active: Bool, level: CGFloat = 0.7) {
+            isPreviewMode = true
+            DispatchQueue.main.async {
+                self.isActive = active
+                self.level = active ? level : 0.0
+            }
+        }
+        
         public func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
+            // Don't process real audio if in preview mode
+            guard !isPreviewMode else { return }
+
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
             
@@ -79,15 +88,7 @@ class BubbleSessionManager: NSObject, ObservableObject {
                     self.level = max(self.level * 0.8, 0.0)
                 }
             }
-        }
-        
-        // Simple simulation for previews
-        public func simulateActivity(active: Bool, level: CGFloat = 0.7) {
-            DispatchQueue.main.async {
-                self.isActive = active
-                self.level = active ? level : 0.0
-            }
-        }
+        }        
     }
     
     init(username: String) {
