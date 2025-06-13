@@ -22,11 +22,11 @@ struct BubbleDetailView: View {
     // View state for each participant, including the host
     class ParticipantViewState: ObservableObject {
         @Published var isAudioActive: Bool = false
-        @Published var audioLevel: CGFloat = 0.0  // Single value instead of array
+        @Published var audioLevel: CGFloat = 0.0
         
         private var cancellables = Set<AnyCancellable>()
         
-        init(audioData: BubbleSessionManager.ParticipantAudioData) {
+        init(audioData: AudioManager.ParticipantAudioData) {  // Change this line
             // Subscribe to changes in the audio data
             audioData.$isActive
                 .receive(on: DispatchQueue.main)

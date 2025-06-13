@@ -7,17 +7,22 @@
 
 import Foundation
 import MultipeerConnectivity
-import Combine
 
-// A mock session manager for SwiftUI previews
 class MockBubbleSessionManager: BubbleSessionManager {
     
     override init(username: String = "Preview User") {
         super.init(username: username)
-        previewHeadphonesConnected = true
-        
-        // Set up some initial mock states without timers
         setupMockStates()
+    }
+    
+    override var isHeadphonesConnected: Bool {
+        return true // Always true for previews
+    }
+    
+    // Override to expose the correct type for previews
+    var previewHeadphonesConnected: Bool {
+        get { return true }
+        set { /* ignore for mock */ }
     }
     
     private func setupMockStates() {
@@ -29,5 +34,5 @@ class MockBubbleSessionManager: BubbleSessionManager {
         getAudioDataForPeer(hostPeerID).simulateActivity(active: true, level: 0.6)
         getAudioDataForPeer(user1PeerID).simulateActivity(active: false, level: 0.0)
         getAudioDataForPeer(user2PeerID).simulateActivity(active: true, level: 0.8)
-    }    
+    }
 }

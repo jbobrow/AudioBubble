@@ -28,7 +28,7 @@ class OpusCodec {
         }
         
         // Store the format for later use
-        self.compressionFormat = AVAudioFormat(
+        compressionFormat = AVAudioFormat(
             standardFormatWithSampleRate: sampleRate,
             channels: channels
         )
@@ -36,11 +36,6 @@ class OpusCodec {
     }
     
     func encode(buffer: AVAudioPCMBuffer) -> Data? {
-        guard let format = compressionFormat else {
-            print("Compression format not available")
-            return nil
-        }
-        
         // Convert PCM buffer to Data using simple serialization
         // This is a temporary solution - for production you'd want proper compression
         return serializePCMBuffer(buffer)
