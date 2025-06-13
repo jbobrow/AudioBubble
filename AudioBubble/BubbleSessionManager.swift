@@ -239,8 +239,13 @@ class BubbleSessionManager: NSObject, ObservableObject {
     // MARK: - Private Methods
         
     private func setupAudioSession() {
-        // setup Opus Codec
-        opusCodec = OpusCodec()
+        // Initialize native codec instead of Opus
+        if opusCodec == nil {
+            opusCodec = OpusCodec()
+            if opusCodec == nil {
+                print("Warning: Could not initialize audio codec, audio quality may be reduced")
+            }
+        }
         
         do {
             // Configure audio session with more specific options
@@ -436,29 +441,25 @@ class BubbleSessionManager: NSObject, ObservableObject {
         // Convert to processing format if needed
         let bufferToEncode = convertBufferIfNeeded(buffer, to: format) ?? buffer
         
-        // Encode using Opus
-        if let encodedData = opusCodec?.encode(buffer: bufferToEncode) {
-            print("Successfully encoded \(encodedData.count) bytes with Opus")
-            
-            // Add packet header with sequence number for tracking packet loss
-            var dataPacket = Data()
-            let seqNumber = UInt32(Date().timeIntervalSince1970 * 1000) // Simple sequence number
-            withUnsafeBytes(of: seqNumber) { seqBytes in
-                dataPacket.append(contentsOf: seqBytes)
-            }
-            dataPacket.append(encodedData)
-            
-            print("Sending \(dataPacket.count) bytes to \(session.connectedPeers.count) peers")
-            
-            do {
-                // Use unreliable delivery for lower latency
-                try session.send(dataPacket, toPeers: session.connectedPeers, with: .unreliable)
-            } catch {
-                errorMessage = "Failed to send audio data: \(error.localizedDescription)"
-                print("Send error: \(error)")
-            }
-        } else {
-            print("Failed to encode audio data with Opus")
+        // Encode using native codec
+        guard let encodedData = opusCodec?.encode(buffer: bufferToEncode) else {
+            print("Failed to encode audio data - codec unavailable")
+            return
+        }
+        
+        // Add packet header with sequence number
+        var dataPacket = Data()
+        let seqNumber = UInt32(Date().timeIntervalSince1970 * 1000)
+        withUnsafeBytes(of: seqNumber) { seqBytes in
+            dataPacket.append(contentsOf: seqBytes)
+        }
+        dataPacket.append(encodedData)
+        
+        do {
+            try session.send(dataPacket, toPeers: session.connectedPeers, with: .unreliable)
+        } catch {
+            print("Send error: \(error)")
+            // Don't set errorMessage for network issues as they're common in unreliable delivery
         }
     }
     
