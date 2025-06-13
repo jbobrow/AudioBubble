@@ -35,19 +35,21 @@ class OpusCodec {
         print("Native audio codec initialized successfully")
     }
     
+    // In OpusManager.swift, make the encode/decode more efficient:
     func encode(buffer: AVAudioPCMBuffer) -> Data? {
-        // Convert PCM buffer to Data using simple serialization
-        // This is a temporary solution - for production you'd want proper compression
-        return serializePCMBuffer(buffer)
-    }
-    
-    func decode(data: Data?) -> AVAudioPCMBuffer? {
-        guard let data = data else {
-            // Handle packet loss with silence
-            return createSilentBuffer()
+        guard let format = compressionFormat else {
+            return nil
         }
         
-        // Deserialize data back to PCM buffer
+        // Skip heavy processing for now - just pass through with minimal header
+        return serializePCMBuffer(buffer)
+    }
+
+    func decode(data: Data?) -> AVAudioPCMBuffer? {
+        guard let data = data else {
+            return nil // Let the system handle silence
+        }
+        
         return deserializeToPCMBuffer(data)
     }
     

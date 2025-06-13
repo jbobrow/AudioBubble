@@ -17,12 +17,12 @@ class BubbleSessionManager: NSObject, ObservableObject {
     @Published var isConnected = false
     @Published var errorMessage: String?
     
+    // Forward AudioManager published properties to our published properties
+    @Published var isHeadphonesConnected = false
+    @Published var isMonitoringEnabled = false
+    
     // Audio management delegation
     private let audioManager = AudioManager()
-    
-    // Expose audio properties through computed properties
-    var isHeadphonesConnected: Bool { audioManager.isHeadphonesConnected }
-    var isMonitoringEnabled: Bool { audioManager.isMonitoringEnabled }
     
     // MultipeerConnectivity components
     private var myPeerID: MCPeerID
@@ -30,6 +30,13 @@ class BubbleSessionManager: NSObject, ObservableObject {
     private var session: MCSession?
     private var nearbyServiceBrowser: MCNearbyServiceBrowser?
     private var nearbyServiceAdvertiser: MCNearbyServiceAdvertiser?
+    
+    // Connection management
+    private var connectionRetryCount = 0
+    private let maxRetryAttempts = 3
+    
+    // Combine cancellables
+    private var cancellables = Set<AnyCancellable>()
     
     var currentPeerID: MCPeerID {
         return myPeerID
@@ -40,6 +47,22 @@ class BubbleSessionManager: NSObject, ObservableObject {
         super.init()
         
         audioManager.audioDelegate = self
+        setupAudioManagerObservation()
+    }
+    
+    // MARK: - Audio Manager Observation
+    
+    private func setupAudioManagerObservation() {
+        // Forward AudioManager published properties to our published properties
+        audioManager.$isHeadphonesConnected
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.isHeadphonesConnected, on: self)
+            .store(in: &cancellables)
+        
+        audioManager.$isMonitoringEnabled
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.isMonitoringEnabled, on: self)
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
@@ -63,7 +86,12 @@ class BubbleSessionManager: NSObject, ObservableObject {
         }
         
         let bubble = AudioBubble(id: UUID().uuidString, name: name, hostPeerID: myPeerID)
-        currentBubble = bubble
+        
+        // Ensure host is in the participants list from the start
+        var updatedBubble = bubble
+        updatedBubble.participants = [myPeerID]  // Host is always the first participant
+        
+        currentBubble = updatedBubble
         isHost = true
         isConnected = true
         
@@ -86,14 +114,27 @@ class BubbleSessionManager: NSObject, ObservableObject {
             return
         }
         
+        connectionRetryCount = 0
+        attemptConnection(to: bubble, with: browser, session: session)
+    }
+    
+    private func attemptConnection(to bubble: AudioBubble, with browser: MCNearbyServiceBrowser, session: MCSession) {
         browser.invitePeer(bubble.hostPeerID, to: session, withContext: nil, timeout: 10)
         currentBubble = bubble
         isHost = false
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
             if !self.isConnected && self.currentBubble?.id == bubble.id {
-                self.errorMessage = "Failed to connect to bubble"
-                self.currentBubble = nil
+                self.connectionRetryCount += 1
+                
+                if self.connectionRetryCount < self.maxRetryAttempts {
+                    print("Connection attempt \(self.connectionRetryCount) failed, retrying...")
+                    self.attemptConnection(to: bubble, with: browser, session: session)
+                } else {
+                    self.errorMessage = "Failed to connect after \(self.maxRetryAttempts) attempts"
+                    self.currentBubble = nil
+                    self.connectionRetryCount = 0
+                }
             }
         }
     }
@@ -148,6 +189,13 @@ class BubbleSessionManager: NSObject, ObservableObject {
         nearbyServiceBrowser = nil
         nearbyServiceAdvertiser = nil
     }
+    
+    // MARK: - Cleanup
+    
+    deinit {
+        cleanupSession()
+        cancellables.removeAll()
+    }
 }
 
 // MARK: - AudioManagerDelegate
@@ -173,9 +221,19 @@ extension BubbleSessionManager: MCSessionDelegate {
             case .connected:
                 if let bubble = self.currentBubble {
                     var updatedBubble = bubble
-                    if !updatedBubble.participants.contains(peerID) && peerID != updatedBubble.hostPeerID {
-                        updatedBubble.participants.append(peerID)
+                    
+                    // Ensure host is always in the participants list
+                    var allParticipants = updatedBubble.participants
+                    if !allParticipants.contains(updatedBubble.hostPeerID) {
+                        allParticipants.append(updatedBubble.hostPeerID)
                     }
+                    
+                    // Add newly connected peer if not already there
+                    if !allParticipants.contains(peerID) {
+                        allParticipants.append(peerID)
+                    }
+                    
+                    updatedBubble.participants = allParticipants
                     self.currentBubble = updatedBubble
                 }
                 self.isConnected = true
@@ -193,6 +251,12 @@ extension BubbleSessionManager: MCSessionDelegate {
                 if let bubble = self.currentBubble {
                     var updatedBubble = bubble
                     updatedBubble.participants.removeAll { $0 == peerID }
+                    
+                    // Keep host in the list even if they disconnect temporarily
+                    if !updatedBubble.participants.contains(updatedBubble.hostPeerID) {
+                        updatedBubble.participants.append(updatedBubble.hostPeerID)
+                    }
+                    
                     self.currentBubble = updatedBubble
                 }
                 

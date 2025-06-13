@@ -9,10 +9,12 @@
 /* Begin PBXBuildFile section */
 		2BC0D9612DCFC8060041B88E /* Copus in Frameworks */ = {isa = PBXBuildFile; productRef = 2BC0D9602DCFC8060041B88E /* Copus */; };
 		2BC0D9632DCFC8060041B88E /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = 2BC0D9622DCFC8060041B88E /* Opus */; };
+		2BF965882DFCD50000F47CFF /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF965872DFCD50000F47CFF /* UserProfile.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2BF6A3E42DCCF66E00F3807C /* AudioBubble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioBubble.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2BF965872DFCD50000F47CFF /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -52,6 +54,7 @@
 		2BF6A3DB2DCCF66E00F3807C = {
 			isa = PBXGroup;
 			children = (
+				2BF965872DFCD50000F47CFF /* UserProfile.swift */,
 				2BF6A3E62DCCF66E00F3807C /* AudioBubble */,
 				2BF6A3E52DCCF66E00F3807C /* Products */,
 			);
@@ -144,6 +147,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2BF965882DFCD50000F47CFF /* UserProfile.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

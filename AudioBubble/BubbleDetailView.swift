@@ -45,18 +45,31 @@ struct BubbleDetailView: View {
     }
     
     var body: some View {
-        VStack(spacing: 20) {
-            VStack {
+        VStack(spacing: 16) {
+            // Audio Bubble Icon
+            Circle()
+                .fill(.blue.gradient)
+                .frame(width: 80, height: 80)
+                .overlay {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.white)
+                }
+            
+            VStack(spacing: 8) {
                 Text(bubble.name)
                     .font(.title)
                     .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
                 
-                if isHost {
-                    Text("You are the host")
-                        .font(.subheadline)
-                        .foregroundColor(.green)
-                }
-                
+                Text(isHost ? "You're hosting this bubble" : "Hosted by \(bubble.hostPeerID.displayName)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.top)
+        VStack(spacing: 20) {
+            VStack {
                 Text("Active Conversation")
                     .font(.headline)
                     .padding(.top)
@@ -148,12 +161,18 @@ struct BubbleDetailView: View {
     }
     
     private func setupParticipantStates() {
-        // Initialize states for all participants including host
-        let allPeers = [bubble.hostPeerID] + bubble.participants
+        participantStates.removeAll()
         
-        for peer in allPeers {
-            let audioData = sessionManager.getAudioDataForPeer(peer)
-            participantStates[peer] = ParticipantViewState(audioData: audioData)
+        // Always include the host
+        let hostState = ParticipantViewState(audioData: sessionManager.getAudioDataForPeer(bubble.hostPeerID))
+        participantStates[bubble.hostPeerID] = hostState
+        
+        // Add all other participants
+        for participant in bubble.participants {
+            if participant != bubble.hostPeerID {  // Don't duplicate the host
+                let state = ParticipantViewState(audioData: sessionManager.getAudioDataForPeer(participant))
+                participantStates[participant] = state
+            }
         }
     }
     

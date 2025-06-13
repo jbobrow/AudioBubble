@@ -157,10 +157,11 @@ class AudioManager: ObservableObject {
                 mode: .voiceChat,
                 options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
             )
-            try audioSession.setPreferredIOBufferDuration(0.02)
+            // Use the lowest possible latency settings
             try audioSession.setPreferredSampleRate(48000)
+            try audioSession.setPreferredIOBufferDuration(0.005) // 5ms for ultra-low latency
             try audioSession.setActive(true, options: [])
-            print("Audio session configured successfully")
+            print("Audio session configured: SR=\(audioSession.sampleRate), Buffer=\(audioSession.ioBufferDuration)")
         } catch {
             print("Audio session error: \(error)")
         }
@@ -212,6 +213,7 @@ class AudioManager: ObservableObject {
         
         audioEngine.attach(remoteAudioMixer)
         
+        // Use hardware sample rate for best performance
         let hardwareSampleRate = audioSession.sampleRate
         guard let processingFormat = AVAudioFormat(
             standardFormatWithSampleRate: hardwareSampleRate,
@@ -223,8 +225,9 @@ class AudioManager: ObservableObject {
         
         audioEngine.connect(remoteAudioMixer, to: mainMixer, format: processingFormat)
         
+        // Use very small buffer for minimum latency
         let inputFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, time in
+        inputNode.installTap(onBus: 0, bufferSize: 256, format: inputFormat) { [weak self] buffer, time in
             self?.processAndSendAudioBuffer(buffer, with: processingFormat)
         }
         

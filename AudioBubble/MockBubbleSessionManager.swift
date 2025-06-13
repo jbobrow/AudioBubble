@@ -13,16 +13,11 @@ class MockBubbleSessionManager: BubbleSessionManager {
     override init(username: String = "Preview User") {
         super.init(username: username)
         setupMockStates()
-    }
-    
-    override var isHeadphonesConnected: Bool {
-        return true // Always true for previews
-    }
-    
-    // Override to expose the correct type for previews
-    var previewHeadphonesConnected: Bool {
-        get { return true }
-        set { /* ignore for mock */ }
+        
+        // Set mock headphones state after initialization
+        DispatchQueue.main.async {
+            self.isHeadphonesConnected = true
+        }
     }
     
     private func setupMockStates() {
