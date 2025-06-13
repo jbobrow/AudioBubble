@@ -139,6 +139,9 @@ class BubbleSessionManager: NSObject, ObservableObject {
     // MARK: - Public Methods
     
     func setupSession() {
+        // Clean up existing session first
+        cleanupSession()
+        
         // Create the session
         session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
         session?.delegate = self
@@ -149,6 +152,25 @@ class BubbleSessionManager: NSObject, ObservableObject {
         
         // Start browsing for nearby peers
         nearbyServiceBrowser?.startBrowsingForPeers()
+    }
+
+    private func cleanupSession() {
+        // Stop browsing and advertising
+        nearbyServiceBrowser?.stopBrowsingForPeers()
+        nearbyServiceAdvertiser?.stopAdvertisingPeer()
+        
+        // Disconnect session
+        session?.disconnect()
+        
+        // Clear delegates to prevent callbacks
+        session?.delegate = nil
+        nearbyServiceBrowser?.delegate = nil
+        nearbyServiceAdvertiser?.delegate = nil
+        
+        // Clear references
+        session = nil
+        nearbyServiceBrowser = nil
+        nearbyServiceAdvertiser = nil
     }
     
     func createBubble(name: String) {
@@ -178,23 +200,36 @@ class BubbleSessionManager: NSObject, ObservableObject {
             return
         }
         
-        guard let browser = nearbyServiceBrowser else { return }
+        guard let browser = nearbyServiceBrowser, let session = session else {
+            errorMessage = "Session not ready"
+            return
+        }
         
-        browser.invitePeer(bubble.hostPeerID, to: session!, withContext: nil, timeout: 30)
+        browser.invitePeer(bubble.hostPeerID, to: session, withContext: nil, timeout: 10) // Reduced timeout
         currentBubble = bubble
         isHost = false
+        
+        // Set a fallback timer in case connection fails
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+            if !self.isConnected && self.currentBubble?.id == bubble.id {
+                self.errorMessage = "Failed to connect to bubble"
+                self.currentBubble = nil
+            }
+        }
     }
     
     func leaveBubble() {
-        if isHost {
-            nearbyServiceAdvertiser?.stopAdvertisingPeer()
+        cleanupSession()
+        stopAudioEngine()
+        
+        DispatchQueue.main.async {
+            self.currentBubble = nil
+            self.isConnected = false
+            self.isHost = false
         }
         
-        stopAudioEngine()
-        session?.disconnect()
-        currentBubble = nil
-        isConnected = false
-        isHost = false
+        // Restart session for finding new bubbles
+        setupSession()
     }
     
     func toggleMonitoring(enabled: Bool) {
@@ -646,19 +681,18 @@ extension BubbleSessionManager: MCSessionDelegate {
             case .connected:
                 if let bubble = self.currentBubble {
                     var updatedBubble = bubble
-                    
-                    // Only add the peer if it's not already in the list and is not the host
                     if !updatedBubble.participants.contains(peerID) && peerID != updatedBubble.hostPeerID {
                         updatedBubble.participants.append(peerID)
                     }
-                    
                     self.currentBubble = updatedBubble
                 }
                 self.isConnected = true
                 
-                // If we just joined as a client, start audio
-                if !self.isHost {
-                    self.setupAudioEngine()
+                // Setup audio on background queue to avoid blocking UI
+                DispatchQueue.global(qos: .userInitiated).async {
+                    if !self.isHost {
+                        self.setupAudioEngine()
+                    }
                 }
                 
             case .connecting:
@@ -670,6 +704,14 @@ extension BubbleSessionManager: MCSessionDelegate {
                     updatedBubble.participants.removeAll { $0 == peerID }
                     self.currentBubble = updatedBubble
                 }
+                
+                // Clean up audio resources for this peer
+                if let playerNode = self.peerPlayerNodes[peerID] {
+                    playerNode.stop()
+                    self.audioEngine?.detach(playerNode)
+                    self.peerPlayerNodes.removeValue(forKey: peerID)
+                }
+                self.remoteAudioData.removeValue(forKey: peerID)
                 
             @unknown default:
                 print("Unknown state: \(state)")
