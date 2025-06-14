@@ -70,13 +70,19 @@ class BubbleSessionManager: NSObject, ObservableObject {
     func setupSession() {
         cleanupSession()
         
-        session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .required)
+        session = MCSession(peer: myPeerID, securityIdentity: nil, encryptionPreference: .none)
         session?.delegate = self
         
         nearbyServiceBrowser = MCNearbyServiceBrowser(peer: myPeerID, serviceType: serviceType)
         nearbyServiceBrowser?.delegate = self
         
         nearbyServiceBrowser?.startBrowsingForPeers()
+        print("Session setup complete for \(myPeerID.displayName)")
+        
+        // Add a delay to ensure session is fully ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            print("Session ready with \(self.session?.connectedPeers.count ?? 0) connected peers")
+        }
     }
     
     func createBubble(name: String) {
@@ -85,13 +91,12 @@ class BubbleSessionManager: NSObject, ObservableObject {
             return
         }
         
-        let bubble = AudioBubble(id: UUID().uuidString, name: name, hostPeerID: myPeerID)
+        var bubble = AudioBubble(id: UUID().uuidString, name: name, hostPeerID: myPeerID)
         
-        // Ensure host is in the participants list from the start
-        var updatedBubble = bubble
-        updatedBubble.participants = [myPeerID]  // Host is always the first participant
+        // Host is always the first participant
+        bubble.participants = [myPeerID]
         
-        currentBubble = updatedBubble
+        currentBubble = bubble
         isHost = true
         isConnected = true
         
@@ -156,6 +161,10 @@ class BubbleSessionManager: NSObject, ObservableObject {
         audioManager.toggleMonitoring(enabled: enabled)
     }
     
+    func updateAudioSettings(_ settings: AudioSettings) {
+        audioManager.updateSettings(settings)
+    }
+    
     func getAudioDataForPeer(_ peerID: MCPeerID) -> AudioManager.ParticipantAudioData {
         let peerKey = (peerID == myPeerID) ? "local" : peerID.displayName
         return audioManager.getAudioDataForPeer(peerKey)
@@ -202,10 +211,14 @@ class BubbleSessionManager: NSObject, ObservableObject {
 
 extension BubbleSessionManager: AudioManagerDelegate {
     func audioManager(_ manager: AudioManager, didCaptureAudioData data: Data) {
-        guard let session = session, !session.connectedPeers.isEmpty else { return }
+        guard let session = session, !session.connectedPeers.isEmpty else {
+            print("No connected peers to send audio to")
+            return
+        }
         
         do {
             try session.send(data, toPeers: session.connectedPeers, with: .unreliable)
+            print("Sent audio data to \(session.connectedPeers.count) peers: \(data.count) bytes")
         } catch {
             print("Send error: \(error)")
         }
@@ -221,19 +234,9 @@ extension BubbleSessionManager: MCSessionDelegate {
             case .connected:
                 if let bubble = self.currentBubble {
                     var updatedBubble = bubble
-                    
-                    // Ensure host is always in the participants list
-                    var allParticipants = updatedBubble.participants
-                    if !allParticipants.contains(updatedBubble.hostPeerID) {
-                        allParticipants.append(updatedBubble.hostPeerID)
+                    if !updatedBubble.participants.contains(peerID) && peerID != updatedBubble.hostPeerID {
+                        updatedBubble.participants.append(peerID)
                     }
-                    
-                    // Add newly connected peer if not already there
-                    if !allParticipants.contains(peerID) {
-                        allParticipants.append(peerID)
-                    }
-                    
-                    updatedBubble.participants = allParticipants
                     self.currentBubble = updatedBubble
                 }
                 self.isConnected = true
@@ -251,12 +254,6 @@ extension BubbleSessionManager: MCSessionDelegate {
                 if let bubble = self.currentBubble {
                     var updatedBubble = bubble
                     updatedBubble.participants.removeAll { $0 == peerID }
-                    
-                    // Keep host in the list even if they disconnect temporarily
-                    if !updatedBubble.participants.contains(updatedBubble.hostPeerID) {
-                        updatedBubble.participants.append(updatedBubble.hostPeerID)
-                    }
-                    
                     self.currentBubble = updatedBubble
                 }
                 
@@ -269,7 +266,39 @@ extension BubbleSessionManager: MCSessionDelegate {
     }
     
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
-        audioManager.processIncomingAudio(data, fromPeer: peerID.displayName)
+        // Check if this is a participant list update
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let participantNames = json["participants"] as? [String] {
+            
+            DispatchQueue.main.async {
+                if let bubble = self.currentBubble {
+                    var updatedBubble = bubble
+                    // Convert names back to MCPeerID objects
+                    var participants: [MCPeerID] = []
+                    
+                    for name in participantNames {
+                        if name == bubble.hostPeerID.displayName {
+                            participants.append(bubble.hostPeerID)
+                        } else if name == self.myPeerID.displayName {
+                            participants.append(self.myPeerID)
+                        } else {
+                            // Find from connected peers
+                            if let peer = session.connectedPeers.first(where: { $0.displayName == name }) {
+                                participants.append(peer)
+                            }
+                        }
+                    }
+                    
+                    updatedBubble.participants = participants
+                    self.currentBubble = updatedBubble
+                    print("Received participant update: \(participantNames)")
+                }
+            }
+        } else {
+            // This is audio data - log it
+            print("Received audio data from \(peerID.displayName): \(data.count) bytes")
+            audioManager.processIncomingAudio(data, fromPeer: peerID.displayName)
+        }
     }
     
     func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {

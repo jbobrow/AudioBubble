@@ -1,53 +1,39 @@
-//
-//  AudioManager.swift
-//  AudioBubble
-//
-//  Created by Jonathan Bobrow on 5/8/25.
-//
-
 import Foundation
 import AVFoundation
+import MultipeerConnectivity
 import Combine
 
 protocol AudioManagerDelegate: AnyObject {
     func audioManager(_ manager: AudioManager, didCaptureAudioData data: Data)
 }
 
-class AudioManager: ObservableObject {
-    // Published properties
+class AudioManager: NSObject, ObservableObject {
     @Published var isHeadphonesConnected = false
     @Published var isMonitoringEnabled = false
     
-    // Audio components
-    private var audioSession: AVAudioSession = .sharedInstance()
-    private var audioEngine: AVAudioEngine?
-    private var inputNode: AVAudioInputNode?
-    private var remoteAudioMixer: AVAudioMixerNode?
-    private var opusCodec: OpusCodec?
-    private var cancellables = Set<AnyCancellable>()
-    private var peerPlayerNodes: [String: AVAudioPlayerNode] = [:]
-    
-    // Audio level tracking
-    private var localAudioData = ParticipantAudioData()
-    private var remoteAudioData: [String: ParticipantAudioData] = [:]
-    
-    // Delegate for sending audio data
     weak var audioDelegate: AudioManagerDelegate?
     
-    // Each participant will have their own audio level data
-    public class ParticipantAudioData: ObservableObject {
-        @Published var level: CGFloat = 0.0
+    private let audioSession = AVAudioSession.sharedInstance()
+    private var audioEngine: AVAudioEngine?
+    private var inputNode: AVAudioInputNode?
+    private var playerNodes: [String: AVAudioPlayerNode] = [:]
+    private var monitorMixer: AVAudioMixerNode?
+    
+    // Settings
+    private var audioSettings: AudioSettings?
+    
+    // Simple audio data tracking
+    class ParticipantAudioData: ObservableObject {
         @Published var isActive: Bool = false
-        private var threshold: Float = 0.01
-        private var smoothingFactor: CGFloat = 0.3
+        @Published var level: CGFloat = 0.0
+        
         private var isPreviewMode = false
         
-        public func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
+        func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
             guard !isPreviewMode else { return }
             
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
-            
             guard frameLength > 0 else { return }
             
             var sum: Float = 0
@@ -57,349 +43,269 @@ class AudioManager: ObservableObject {
             }
             let rms = sqrt(sum / Float(frameLength))
             
-            // Ensure rms is not NaN or infinite
-            guard rms.isFinite && !rms.isNaN else { return }
-            
-            let newIsActive = rms > threshold
-            let normalizedLevel = min(max(rms * 20, 0.0), 1.0)
-            
-            // Ensure normalizedLevel is valid
-            guard normalizedLevel.isFinite && !normalizedLevel.isNaN else { return }
-            
             DispatchQueue.main.async {
-                self.isActive = newIsActive
-                
-                if newIsActive {
-                    let newLevel = self.level * (1 - self.smoothingFactor) + CGFloat(normalizedLevel) * self.smoothingFactor
-                    // Ensure final level is valid
-                    if newLevel.isFinite && !newLevel.isNaN {
-                        self.level = newLevel
-                    }
-                } else {
-                    let newLevel = max(self.level * 0.8, 0.0)
-                    if newLevel.isFinite && !newLevel.isNaN {
-                        self.level = newLevel
-                    }
-                }
+                self.isActive = rms > 0.01  // Simple threshold
+                self.level = min(CGFloat(rms * 10), 1.0)  // Simple scaling
             }
         }
         
-        public func simulateActivity(active: Bool, level: CGFloat = 0.7) {
+        func simulateActivity(active: Bool, level: CGFloat = 0.7) {
             isPreviewMode = true
-            
-            // Validate level input
-            let validLevel = max(0.0, min(1.0, level))
-            guard validLevel.isFinite && !validLevel.isNaN else { return }
-            
             DispatchQueue.main.async {
                 self.isActive = active
-                self.level = active ? validLevel : 0.0
+                self.level = active ? level : 0.0
             }
         }
     }
     
-    init() {
-        setupAudioSession()
-        monitorHeadphonesConnection()
+    private var participantAudioData: [String: ParticipantAudioData] = [:]
+    private let localAudioData = ParticipantAudioData()
+    
+    override init() {
+        super.init()
+        checkHeadphones()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(audioRouteChanged),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
     }
     
-    // MARK: - Public Methods
-    
-    func getAudioDataForPeer(_ peerID: String) -> ParticipantAudioData {
-        if peerID == "local" {
+    func getAudioDataForPeer(_ peerKey: String) -> ParticipantAudioData {
+        if peerKey == "local" {
             return localAudioData
-        } else if let data = remoteAudioData[peerID] {
-            return data
-        } else {
-            let newData = ParticipantAudioData()
-            remoteAudioData[peerID] = newData
-            return newData
         }
+        
+        if let existing = participantAudioData[peerKey] {
+            return existing
+        }
+        
+        let newData = ParticipantAudioData()
+        participantAudioData[peerKey] = newData
+        return newData
     }
+    
+    // MARK: - Simple Audio Engine
     
     func startAudioEngine() {
-        setupAudioEngine()
+        print("Starting simple audio engine...")
+        
+        setupAudioSession()
+        setupSimpleAudioEngine()
     }
     
     func stopAudioEngine() {
-        cleanupAudioEngine()
+        print("Stopping audio engine...")
+        audioEngine?.stop()
+        audioEngine = nil
+        inputNode = nil
+        monitorMixer = nil
+        playerNodes.removeAll()
     }
-    
-    func toggleMonitoring(enabled: Bool) {
-        isMonitoringEnabled = enabled
-        updateMonitoringConnections()
-    }
-    
-    func processIncomingAudio(_ data: Data, fromPeer peerID: String) {
-        receiveAudioData(data, fromPeer: peerID)
-    }
-    
-    func cleanupPeer(_ peerID: String) {
-        if let playerNode = peerPlayerNodes[peerID] {
-            playerNode.stop()
-            audioEngine?.detach(playerNode)
-            peerPlayerNodes.removeValue(forKey: peerID)
-        }
-        remoteAudioData.removeValue(forKey: peerID)
-    }
-    
-    // MARK: - Private Methods
     
     private func setupAudioSession() {
-        opusCodec = OpusCodec()
-        if opusCodec == nil {
-            print("Warning: Could not initialize audio codec")
-        }
-        
         do {
-            try audioSession.setCategory(
-                .playAndRecord,
-                mode: .voiceChat,
-                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
-            )
-            // Use the lowest possible latency settings
+            // Simplest possible audio session setup with low latency
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker])
             try audioSession.setPreferredSampleRate(48000)
-            try audioSession.setPreferredIOBufferDuration(0.005) // 5ms for ultra-low latency
-            try audioSession.setActive(true, options: [])
-            print("Audio session configured: SR=\(audioSession.sampleRate), Buffer=\(audioSession.ioBufferDuration)")
+            try audioSession.setPreferredIOBufferDuration(0.005) // Very low latency for monitoring
+            try audioSession.setActive(true)
+            print("Simple audio session configured: \(audioSession.sampleRate)Hz, Buffer: \(audioSession.ioBufferDuration)s")
         } catch {
             print("Audio session error: \(error)")
         }
     }
     
-    private func monitorHeadphonesConnection() {
-        checkHeadphonesConnection()
-        
-        NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
-            .sink { [weak self] _ in
-                self?.checkHeadphonesConnection()
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func checkHeadphonesConnection() {
-        let currentRoute = audioSession.currentRoute
-        isHeadphonesConnected = currentRoute.outputs.contains {
-            $0.portType == .headphones ||
-            $0.portType == .bluetoothA2DP ||
-            $0.portType == .bluetoothHFP
-        }
-    }
-    
-    private func setupAudioEngine() {
-        print("Setting up audio engine...")
-        
-        cleanupAudioEngine()
-        
+    private func setupSimpleAudioEngine() {
         audioEngine = AVAudioEngine()
-        guard let audioEngine = audioEngine else {
-            print("Failed to create audio engine")
-            return
-        }
-        
-        inputNode = audioEngine.inputNode
-        let mainMixer = audioEngine.mainMixerNode
-        
-        guard let inputNode = inputNode else {
-            print("Failed to get input node")
-            return
-        }
-        
-        remoteAudioMixer = AVAudioMixerNode()
-        guard let remoteAudioMixer = remoteAudioMixer else {
-            print("Failed to create remote audio mixer")
-            return
-        }
-        
-        audioEngine.attach(remoteAudioMixer)
-        
-        // Use hardware sample rate for best performance
-        let hardwareSampleRate = audioSession.sampleRate
-        guard let processingFormat = AVAudioFormat(
-            standardFormatWithSampleRate: hardwareSampleRate,
-            channels: 1
-        ) else {
-            print("Failed to create processing format")
-            return
-        }
-        
-        audioEngine.connect(remoteAudioMixer, to: mainMixer, format: processingFormat)
-        
-        // Use very small buffer for minimum latency
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 256, format: inputFormat) { [weak self] buffer, time in
-            self?.processAndSendAudioBuffer(buffer, with: processingFormat)
-        }
-        
-        updateMonitoringConnections()
-        prepareAndStartEngine()
-    }
-    
-    private func prepareAndStartEngine() {
         guard let audioEngine = audioEngine else { return }
         
-        do {
-            audioEngine.prepare()
-            try audioEngine.start()
-            print("Audio engine started successfully")
-        } catch {
-            print("Failed to start audio engine: \(error)")
-            recoverAudioEngine()
-        }
-    }
-    
-    private func recoverAudioEngine() {
-        do {
-            try audioSession.setActive(false)
-            try audioSession.setActive(true)
-            audioEngine?.prepare()
-            try audioEngine?.start()
-            print("Audio engine recovered")
-        } catch {
-            print("Audio system unavailable: \(error)")
-        }
-    }
-    
-    private func cleanupAudioEngine() {
-        print("Cleaning up audio engine...")
+        inputNode = audioEngine.inputNode
+        guard let inputNode = inputNode else { return }
         
-        for (_, playerNode) in peerPlayerNodes {
-            playerNode.stop()
-        }
+        // Create a mixer for monitoring
+        monitorMixer = AVAudioMixerNode()
+        guard let monitorMixer = monitorMixer else { return }
+        audioEngine.attach(monitorMixer)
         
-        inputNode?.removeTap(onBus: 0)
-        audioEngine?.stop()
-        audioEngine?.reset()
-        
-        for (_, playerNode) in peerPlayerNodes {
-            audioEngine?.detach(playerNode)
-        }
-        
-        peerPlayerNodes.removeAll()
-        
-        if let remoteAudioMixer = remoteAudioMixer {
-            audioEngine?.detach(remoteAudioMixer)
-        }
-        
-        audioEngine = nil
-        inputNode = nil
-        remoteAudioMixer = nil
-        
-        print("Audio engine cleaned up")
-    }
-    
-    private func processAndSendAudioBuffer(_ buffer: AVAudioPCMBuffer, with format: AVAudioFormat) {
-        localAudioData.updateWithBuffer(buffer)
-        
-        let bufferToEncode = convertBufferIfNeeded(buffer, to: format) ?? buffer
-        
-        guard let encodedData = opusCodec?.encode(buffer: bufferToEncode) else {
-            return
-        }
-        
-        var dataPacket = Data()
-        // Use a simple incrementing counter instead of timestamp to avoid overflow
-        let seqNumber = UInt32(Int(Date().timeIntervalSince1970) % Int(UInt32.max))
-        withUnsafeBytes(of: seqNumber) { seqBytes in
-            dataPacket.append(contentsOf: seqBytes)
-        }
-        dataPacket.append(encodedData)
-        
-        audioDelegate?.audioManager(self, didCaptureAudioData: dataPacket)
-    }
-    
-    private func receiveAudioData(_ data: Data, fromPeer peerID: String) {
-        guard let audioEngine = audioEngine,
-              let remoteAudioMixer = remoteAudioMixer else { return }
-        
-        guard data.count > 4 else { return }
-        
-        let opusData = data.subdata(in: 4..<data.count)
-        
-        guard let decodedBuffer = opusCodec?.decode(data: opusData) else {
-            return
-        }
-        
-        let peerAudioData = getAudioDataForPeer(peerID)
-        peerAudioData.updateWithBuffer(decodedBuffer)
-        
-        let hardwareSampleRate = audioSession.sampleRate
-        guard let processingFormat = AVAudioFormat(
-            standardFormatWithSampleRate: hardwareSampleRate,
-            channels: 1
-        ) else { return }
-        
-        let playerNode: AVAudioPlayerNode
-        if let existingNode = peerPlayerNodes[peerID] {
-            playerNode = existingNode
-        } else {
-            playerNode = AVAudioPlayerNode()
-            audioEngine.attach(playerNode)
-            audioEngine.connect(playerNode, to: remoteAudioMixer, format: processingFormat)
-            peerPlayerNodes[peerID] = playerNode
-        }
-        
-        let bufferToPlay = convertBufferIfNeeded(decodedBuffer, to: processingFormat) ?? decodedBuffer
-        
-        if !playerNode.isPlaying {
-            playerNode.play()
-        }
-        
-        playerNode.scheduleBuffer(bufferToPlay, at: nil, options: [], completionHandler: nil)
-        
-        if !audioEngine.isRunning {
-            do {
-                try audioEngine.start()
-            } catch {
-                print("Failed to restart audio engine: \(error)")
-            }
-        }
-    }
-    
-    private func updateMonitoringConnections() {
-        guard let audioEngine = audioEngine,
-              let inputNode = inputNode else { return }
-        
-        let mainMixer = audioEngine.mainMixerNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
         
-        audioEngine.disconnectNodeOutput(inputNode)
+        // Connect input to main mixer for monitoring
+        audioEngine.connect(inputNode, to: monitorMixer, format: inputFormat)
+        audioEngine.connect(monitorMixer, to: audioEngine.mainMixerNode, format: inputFormat)
         
-        if isMonitoringEnabled {
-            audioEngine.connect(inputNode, to: mainMixer, format: inputFormat)
-            print("Monitoring enabled")
-        } else {
-            print("Monitoring disabled")
+        // Set initial monitoring volume (muted by default)
+        monitorMixer.outputVolume = isMonitoringEnabled ? 0.5 : 0.0
+        
+        // Install the simplest possible tap
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+            self?.processAudioBuffer(buffer)
+        }
+        
+        do {
+            try audioEngine.start()
+            print("Simple audio engine started")
+        } catch {
+            print("Failed to start audio engine: \(error)")
         }
     }
     
-    private func convertBufferIfNeeded(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
-        if buffer.format.sampleRate == format.sampleRate &&
-           buffer.format.channelCount == format.channelCount {
-            return buffer
+    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
+        // Update local audio data
+        localAudioData.updateWithBuffer(buffer)
+        
+        // Convert to simplest possible data format
+        guard let data = bufferToData(buffer) else { return }
+        
+        print("Sending audio data: \(data.count) bytes")
+        
+        // Send immediately
+        audioDelegate?.audioManager(self, didCaptureAudioData: data)
+    }
+    
+    // MARK: - Receive Audio
+    
+    func processIncomingAudio(_ data: Data, fromPeer peerID: String) {
+        print("Received audio data from \(peerID): \(data.count) bytes")
+        
+        guard let buffer = dataToBuffer(data) else {
+            print("Failed to convert data to buffer for \(peerID)")
+            return
         }
         
-        guard let converter = AVAudioConverter(from: buffer.format, to: format) else {
+        // Update peer audio data
+        let peerAudioData = getAudioDataForPeer(peerID)
+        peerAudioData.updateWithBuffer(buffer)
+        
+        // Play immediately
+        playAudioBuffer(buffer, forPeer: peerID)
+    }
+    
+    private func playAudioBuffer(_ buffer: AVAudioPCMBuffer, forPeer peerID: String) {
+        guard let audioEngine = audioEngine, audioEngine.isRunning else {
+            print("Audio engine not running for \(peerID)")
+            return
+        }
+        
+        let playerNode: AVAudioPlayerNode
+        if let existingNode = playerNodes[peerID] {
+            playerNode = existingNode
+        } else {
+            print("Creating new player node for \(peerID)")
+            playerNode = AVAudioPlayerNode()
+            audioEngine.attach(playerNode)
+            
+            // Use buffer's native format to avoid conversion
+            audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: buffer.format)
+            playerNodes[peerID] = playerNode
+            
+            playerNode.play()
+            print("Started player node for \(peerID)")
+        }
+        
+        // Schedule the buffer
+        if playerNode.isPlaying {
+            playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+            print("Scheduled buffer for \(peerID): \(buffer.frameLength) frames")
+        } else {
+            print("Player node not playing for \(peerID)")
+        }
+    }
+    
+    // MARK: - Simple Data Conversion
+    
+    private func bufferToData(_ buffer: AVAudioPCMBuffer) -> Data? {
+        guard let channelData = buffer.floatChannelData?[0] else { return nil }
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return nil }
+        
+        // Just send the raw float data
+        let audioData = Data(bytes: channelData, count: frameLength * MemoryLayout<Float>.size)
+        return audioData
+    }
+    
+    private func dataToBuffer(_ data: Data) -> AVAudioPCMBuffer? {
+        let frameCount = data.count / MemoryLayout<Float>.size
+        guard frameCount > 0 else { return nil }
+        
+        // Use a standard format - 48kHz, 1 channel
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)) else {
             return nil
         }
         
-        guard let convertedBuffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: buffer.frameLength
-        ) else {
-            return nil
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        
+        // Copy the data directly
+        data.withUnsafeBytes { bytes in
+            let floatBytes = bytes.bindMemory(to: Float.self)
+            buffer.floatChannelData?[0].update(from: floatBytes.baseAddress!, count: frameCount)
         }
         
-        var error: NSError?
-        let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
-            outStatus.pointee = .haveData
-            return buffer
+        return buffer
+    }
+    
+    // MARK: - Settings
+    
+    func updateSettings(_ settings: AudioSettings) {
+        self.audioSettings = settings
+        
+        // Apply monitoring settings immediately
+        isMonitoringEnabled = settings.enableMonitoring
+        if let monitorMixer = monitorMixer {
+            monitorMixer.outputVolume = settings.enableMonitoring ? Float(settings.monitoringVolume) : 0.0
         }
         
-        guard status != .error, error == nil else {
-            return nil
+        if audioSettings?.enableLogging == true {
+            print("Audio settings updated: \(settings.audioFormat.rawValue), \(settings.sampleRate.description), \(settings.bufferSize.description)")
+        }
+    }
+    
+    // MARK: - Monitoring & Cleanup
+    
+    func toggleMonitoring(enabled: Bool) {
+        isMonitoringEnabled = enabled
+        
+        // Update settings if available
+        audioSettings?.enableMonitoring = enabled
+        audioSettings?.saveSettings()
+        
+        // Adjust the monitoring volume
+        if let monitorMixer = monitorMixer {
+            let volume = enabled ? Float(audioSettings?.monitoringVolume ?? 0.5) : 0.0
+            monitorMixer.outputVolume = volume
         }
         
-        return convertedBuffer
+        if audioSettings?.enableLogging == true {
+            print("Monitoring \(enabled ? "enabled" : "disabled")")
+        }
+    }
+    
+    func cleanupPeer(_ peerID: String) {
+        playerNodes[peerID]?.stop()
+        playerNodes.removeValue(forKey: peerID)
+        participantAudioData.removeValue(forKey: peerID)
+    }
+    
+    @objc private func audioRouteChanged() {
+        checkHeadphones()
+    }
+    
+    private func checkHeadphones() {
+        let outputs = audioSession.currentRoute.outputs
+        let hasHeadphones = outputs.contains { output in
+            [.headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE].contains(output.portType)
+        }
+        
+        DispatchQueue.main.async {
+            self.isHeadphonesConnected = hasHeadphones
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        stopAudioEngine()
     }
 }

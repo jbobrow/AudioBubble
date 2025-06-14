@@ -11,8 +11,10 @@ import MultipeerConnectivity
 struct BubbleListView: View {
     @EnvironmentObject var sessionManager: BubbleSessionManager
     @EnvironmentObject var userProfile: UserProfile
+    @StateObject private var audioSettings = AudioSettings()
     @State private var showingCreateBubble = false
     @State private var showingProfile = false
+    @State private var showingAudioSettings = false
     @State private var newBubbleName = ""
     
     var body: some View {
@@ -31,12 +33,22 @@ struct BubbleListView: View {
                     
                     Spacer()
                     
-                    Button(action: {
-                        showingProfile = true
-                    }) {
-                        Image(systemName: "person.circle")
-                            .font(.title2)
-                            .foregroundColor(.blue)
+                    HStack(spacing: 16) {
+                        Button(action: {
+                            showingAudioSettings = true
+                        }) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                        }
+                        
+                        Button(action: {
+                            showingProfile = true
+                        }) {
+                            Image(systemName: "person.circle")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                        }
                     }
                 }
                 
@@ -102,6 +114,10 @@ struct BubbleListView: View {
             .padding(.bottom)
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showingAudioSettings) {
+            AudioSettingsView()
+                .environmentObject(audioSettings)
+        }
         .sheet(isPresented: $showingProfile) {
             NavigationView {
                 ProfileSetupView(isEditing: true)
@@ -126,6 +142,7 @@ struct BubbleListView: View {
         }
         .onAppear {
             sessionManager.setupSession()
+            sessionManager.updateAudioSettings(audioSettings)
         }
         .fullScreenCover(item: $sessionManager.currentBubble) { bubble in
             BubbleDetailView(
