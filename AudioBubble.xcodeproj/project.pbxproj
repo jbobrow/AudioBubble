@@ -6,32 +6,25 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		2BC0D9612DCFC8060041B88E /* Copus in Frameworks */ = {isa = PBXBuildFile; productRef = 2BC0D9602DCFC8060041B88E /* Copus */; };
-		2BC0D9632DCFC8060041B88E /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = 2BC0D9622DCFC8060041B88E /* Opus */; };
-		2BF965882DFCD50000F47CFF /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF965872DFCD50000F47CFF /* UserProfile.swift */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
-		2BF6A3E42DCCF66E00F3807C /* AudioBubble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioBubble.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2BF965872DFCD50000F47CFF /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		2B5591842F08C079005FBE9A /* AudioBubble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioBubble.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		2BF6A3F92DCCFC5200F3807C /* Exceptions for "AudioBubble" folder in "AudioBubble" target */ = {
+		2B132EE32F08CCFD008F50B5 /* Exceptions for "AudioBubble" folder in "AudioBubble" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 2BF6A3E32DCCF66E00F3807C /* AudioBubble */;
+			target = 2B5591832F08C079005FBE9A /* AudioBubble */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2BF6A3E62DCCF66E00F3807C /* AudioBubble */ = {
+		2B5591862F08C079005FBE9A /* AudioBubble */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				2BF6A3F92DCCFC5200F3807C /* Exceptions for "AudioBubble" folder in "AudioBubble" target */,
+				2B132EE32F08CCFD008F50B5 /* Exceptions for "AudioBubble" folder in "AudioBubble" target */,
 			);
 			path = AudioBubble;
 			sourceTree = "<group>";
@@ -39,31 +32,28 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		2BF6A3E12DCCF66E00F3807C /* Frameworks */ = {
+		2B5591812F08C079005FBE9A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2BC0D9612DCFC8060041B88E /* Copus in Frameworks */,
-				2BC0D9632DCFC8060041B88E /* Opus in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		2BF6A3DB2DCCF66E00F3807C = {
+		2B55917B2F08C079005FBE9A = {
 			isa = PBXGroup;
 			children = (
-				2BF965872DFCD50000F47CFF /* UserProfile.swift */,
-				2BF6A3E62DCCF66E00F3807C /* AudioBubble */,
-				2BF6A3E52DCCF66E00F3807C /* Products */,
+				2B5591862F08C079005FBE9A /* AudioBubble */,
+				2B5591852F08C079005FBE9A /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		2BF6A3E52DCCF66E00F3807C /* Products */ = {
+		2B5591852F08C079005FBE9A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2BF6A3E42DCCF66E00F3807C /* AudioBubble.app */,
+				2B5591842F08C079005FBE9A /* AudioBubble.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -71,69 +61,64 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2BF6A3E32DCCF66E00F3807C /* AudioBubble */ = {
+		2B5591832F08C079005FBE9A /* AudioBubble */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2BF6A3F22DCCF66F00F3807C /* Build configuration list for PBXNativeTarget "AudioBubble" */;
+			buildConfigurationList = 2B55918F2F08C07A005FBE9A /* Build configuration list for PBXNativeTarget "AudioBubble" */;
 			buildPhases = (
-				2BF6A3E02DCCF66E00F3807C /* Sources */,
-				2BF6A3E12DCCF66E00F3807C /* Frameworks */,
-				2BF6A3E22DCCF66E00F3807C /* Resources */,
+				2B5591802F08C079005FBE9A /* Sources */,
+				2B5591812F08C079005FBE9A /* Frameworks */,
+				2B5591822F08C079005FBE9A /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				2BF6A3E62DCCF66E00F3807C /* AudioBubble */,
+				2B5591862F08C079005FBE9A /* AudioBubble */,
 			);
 			name = AudioBubble;
 			packageProductDependencies = (
-				2BC0D9602DCFC8060041B88E /* Copus */,
-				2BC0D9622DCFC8060041B88E /* Opus */,
 			);
 			productName = AudioBubble;
-			productReference = 2BF6A3E42DCCF66E00F3807C /* AudioBubble.app */;
+			productReference = 2B5591842F08C079005FBE9A /* AudioBubble.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		2BF6A3DC2DCCF66E00F3807C /* Project object */ = {
+		2B55917C2F08C079005FBE9A /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1620;
-				LastUpgradeCheck = 1640;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
-					2BF6A3E32DCCF66E00F3807C = {
-						CreatedOnToolsVersion = 16.2;
+					2B5591832F08C079005FBE9A = {
+						CreatedOnToolsVersion = 26.2;
 					};
 				};
 			};
-			buildConfigurationList = 2BF6A3DF2DCCF66E00F3807C /* Build configuration list for PBXProject "AudioBubble" */;
+			buildConfigurationList = 2B55917F2F08C079005FBE9A /* Build configuration list for PBXProject "AudioBubble" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = 2BF6A3DB2DCCF66E00F3807C;
+			mainGroup = 2B55917B2F08C079005FBE9A;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-				2BC0D95F2DCFC8060041B88E /* XCRemoteSwiftPackageReference "swift-opus" */,
-			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 2BF6A3E52DCCF66E00F3807C /* Products */;
+			productRefGroup = 2B5591852F08C079005FBE9A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				2BF6A3E32DCCF66E00F3807C /* AudioBubble */,
+				2B5591832F08C079005FBE9A /* AudioBubble */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		2BF6A3E22DCCF66E00F3807C /* Resources */ = {
+		2B5591822F08C079005FBE9A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -143,18 +128,17 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		2BF6A3E02DCCF66E00F3807C /* Sources */ = {
+		2B5591802F08C079005FBE9A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2BF965882DFCD50000F47CFF /* UserProfile.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		2BF6A3F02DCCF66F00F3807C /* Debug */ = {
+		2B55918D2F08C07A005FBE9A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -189,7 +173,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 63KWA2RPU8;
+				DEVELOPMENT_TEAM = 8BQ5WQHBXY;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -207,8 +191,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				"LIBRARY_SEARCH_PATHS[arch=*]" = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -219,7 +202,7 @@
 			};
 			name = Debug;
 		};
-		2BF6A3F12DCCF66F00F3807C /* Release */ = {
+		2B55918E2F08C07A005FBE9A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -254,7 +237,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 63KWA2RPU8;
+				DEVELOPMENT_TEAM = 8BQ5WQHBXY;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -266,7 +249,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -276,65 +259,75 @@
 			};
 			name = Release;
 		};
-		2BF6A3F32DCCF66F00F3807C /* Debug */ = {
+		2B5591902F08C07A005FBE9A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = AudioBubble/AudioBubble.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
-				DEVELOPMENT_ASSET_PATHS = "\"AudioBubble/Preview Content\"";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 63KWA2RPU8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AudioBubble/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Audio Bubble";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Audio Bubble uses local network to connect with nearby devices for voice chat";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio Bubble needs microphone access for voice chat";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.jonbobrow.AudioBubble;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
-		2BF6A3F42DCCF66F00F3807C /* Release */ = {
+		2B5591912F08C07A005FBE9A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = AudioBubble/AudioBubble.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
-				DEVELOPMENT_ASSET_PATHS = "\"AudioBubble/Preview Content\"";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 63KWA2RPU8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AudioBubble/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Audio Bubble";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Audio Bubble uses local network to connect with nearby devices for voice chat";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio Bubble needs microphone access for voice chat";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.jonbobrow.AudioBubble;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -343,49 +336,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2BF6A3DF2DCCF66E00F3807C /* Build configuration list for PBXProject "AudioBubble" */ = {
+		2B55917F2F08C079005FBE9A /* Build configuration list for PBXProject "AudioBubble" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2BF6A3F02DCCF66F00F3807C /* Debug */,
-				2BF6A3F12DCCF66F00F3807C /* Release */,
+				2B55918D2F08C07A005FBE9A /* Debug */,
+				2B55918E2F08C07A005FBE9A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2BF6A3F22DCCF66F00F3807C /* Build configuration list for PBXNativeTarget "AudioBubble" */ = {
+		2B55918F2F08C07A005FBE9A /* Build configuration list for PBXNativeTarget "AudioBubble" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2BF6A3F32DCCF66F00F3807C /* Debug */,
-				2BF6A3F42DCCF66F00F3807C /* Release */,
+				2B5591902F08C07A005FBE9A /* Debug */,
+				2B5591912F08C07A005FBE9A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		2BC0D95F2DCFC8060041B88E /* XCRemoteSwiftPackageReference "swift-opus" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/alta/swift-opus";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.0.2;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		2BC0D9602DCFC8060041B88E /* Copus */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 2BC0D95F2DCFC8060041B88E /* XCRemoteSwiftPackageReference "swift-opus" */;
-			productName = Copus;
-		};
-		2BC0D9622DCFC8060041B88E /* Opus */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 2BC0D95F2DCFC8060041B88E /* XCRemoteSwiftPackageReference "swift-opus" */;
-			productName = Opus;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 2BF6A3DC2DCCF66E00F3807C /* Project object */;
+	rootObject = 2B55917C2F08C079005FBE9A /* Project object */;
 }

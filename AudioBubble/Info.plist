@@ -2,21 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIBackgroundModes</key>
+	<key>NSBonjourServices</key>
 	<array>
-		<string>audio</string>
-		<string>bluetooth-central</string>
+		<string>_audio-bubble._tcp</string>
+		<string>_audio-bubble._udp</string>
 	</array>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>AudioBubble needs to use your local network to discover nearby users.</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_audio-bubble._tcp</string>
-        <string>_audio-bubble._udp</string>
-    </array>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>AudioBubble needs access to your microphone to enable audio sharing.</string>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>AudioBubble uses Bluetooth to connect with nearby users and detect headphones.</string>
 </dict>
 </plist>

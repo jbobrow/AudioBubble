@@ -1,311 +1,219 @@
-import Foundation
 import AVFoundation
-import MultipeerConnectivity
+import Accelerate
 import Combine
 
-protocol AudioManagerDelegate: AnyObject {
-    func audioManager(_ manager: AudioManager, didCaptureAudioData data: Data)
-}
-
 class AudioManager: NSObject, ObservableObject {
-    @Published var isHeadphonesConnected = false
-    @Published var isMonitoringEnabled = false
+    @Published var isRecording = false
+    @Published var audioLevel: Float = 0.0
     
-    weak var audioDelegate: AudioManagerDelegate?
+    private let audioEngine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private var audioFormat: AVAudioFormat!
     
-    private let audioSession = AVAudioSession.sharedInstance()
-    private var audioEngine: AVAudioEngine?
-    private var inputNode: AVAudioInputNode?
-    private var playerNodes: [String: AVAudioPlayerNode] = [:]
-    private var monitorMixer: AVAudioMixerNode?
+    // Audio callback for sending data
+    var onAudioData: ((Data) -> Void)?
     
-    // Settings
-    private var audioSettings: AudioSettings?
-    
-    // Simple audio data tracking
-    class ParticipantAudioData: ObservableObject {
-        @Published var isActive: Bool = false
-        @Published var level: CGFloat = 0.0
-        
-        private var isPreviewMode = false
-        
-        func updateWithBuffer(_ buffer: AVAudioPCMBuffer) {
-            guard !isPreviewMode else { return }
-            
-            guard let channelData = buffer.floatChannelData?[0] else { return }
-            let frameLength = Int(buffer.frameLength)
-            guard frameLength > 0 else { return }
-            
-            var sum: Float = 0
-            for i in 0..<frameLength {
-                let sample = channelData[i]
-                sum += sample * sample
-            }
-            let rms = sqrt(sum / Float(frameLength))
-            
-            DispatchQueue.main.async {
-                self.isActive = rms > 0.01  // Simple threshold
-                self.level = min(CGFloat(rms * 10), 1.0)  // Simple scaling
-            }
-        }
-        
-        func simulateActivity(active: Bool, level: CGFloat = 0.7) {
-            isPreviewMode = true
-            DispatchQueue.main.async {
-                self.isActive = active
-                self.level = active ? level : 0.0
-            }
-        }
-    }
-    
-    private var participantAudioData: [String: ParticipantAudioData] = [:]
-    private let localAudioData = ParticipantAudioData()
+    // Buffer for incoming audio
+    private var audioBufferQueue: [AVAudioPCMBuffer] = []
+    private let bufferLock = NSLock()
     
     override init() {
         super.init()
-        checkHeadphones()
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(audioRouteChanged),
-            name: AVAudioSession.routeChangeNotification,
-            object: nil
-        )
-    }
-    
-    func getAudioDataForPeer(_ peerKey: String) -> ParticipantAudioData {
-        if peerKey == "local" {
-            return localAudioData
-        }
-        
-        if let existing = participantAudioData[peerKey] {
-            return existing
-        }
-        
-        let newData = ParticipantAudioData()
-        participantAudioData[peerKey] = newData
-        return newData
-    }
-    
-    // MARK: - Simple Audio Engine
-    
-    func startAudioEngine() {
-        print("Starting simple audio engine...")
-        
         setupAudioSession()
-        setupSimpleAudioEngine()
+        setupAudioEngine()
     }
     
-    func stopAudioEngine() {
-        print("Stopping audio engine...")
-        audioEngine?.stop()
-        audioEngine = nil
-        inputNode = nil
-        monitorMixer = nil
-        playerNodes.removeAll()
-    }
+    // MARK: - Audio Session Setup
     
     private func setupAudioSession() {
+        let audioSession = AVAudioSession.sharedInstance()
+        
         do {
-            // Simplest possible audio session setup with low latency
-            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker])
+            // Configure for voice chat - THIS IS THE KEY TO FACETIME QUALITY
+            // This enables echo cancellation, AGC, and noise suppression
+            try audioSession.setCategory(.playAndRecord, 
+                                        mode: .voiceChat, 
+                                        options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+            
+            // Prefer low latency
+            try audioSession.setPreferredIOBufferDuration(0.005) // 5ms buffer
+            
+            // Set sample rate for voice optimization
             try audioSession.setPreferredSampleRate(48000)
-            try audioSession.setPreferredIOBufferDuration(0.005) // Very low latency for monitoring
+            
+            // Allow background audio
             try audioSession.setActive(true)
-            print("Simple audio session configured: \(audioSession.sampleRate)Hz, Buffer: \(audioSession.ioBufferDuration)s")
+            
+            print("✅ Audio session configured for low-latency voice chat")
+            print("   Sample Rate: \(audioSession.sampleRate) Hz")
+            print("   IO Buffer Duration: \(audioSession.ioBufferDuration * 1000) ms")
+            print("   Hardware Input Latency: \(audioSession.inputLatency * 1000) ms")
+            print("   Hardware Output Latency: \(audioSession.outputLatency * 1000) ms")
+            
         } catch {
-            print("Audio session error: \(error)")
+            print("❌ Failed to setup audio session: \(error)")
         }
     }
     
-    private func setupSimpleAudioEngine() {
-        audioEngine = AVAudioEngine()
-        guard let audioEngine = audioEngine else { return }
+    // MARK: - Audio Engine Setup
+    
+    private func setupAudioEngine() {
+        let inputNode = audioEngine.inputNode
+        let mainMixer = audioEngine.mainMixerNode
         
-        inputNode = audioEngine.inputNode
-        guard let inputNode = inputNode else { return }
+        // Use hardware format for lowest latency
+        audioFormat = inputNode.inputFormat(forBus: 0)
         
-        // Create a mixer for monitoring
-        monitorMixer = AVAudioMixerNode()
-        guard let monitorMixer = monitorMixer else { return }
-        audioEngine.attach(monitorMixer)
+        // Create a format for transmission (16kHz mono is enough for voice)
+        let transmitFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16000,
+            channels: 1,
+            interleaved: true
+        )!
         
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        print("📊 Audio Format:")
+        print("   Hardware: \(audioFormat.sampleRate) Hz, \(audioFormat.channelCount) channels")
+        print("   Transmit: \(transmitFormat.sampleRate) Hz, \(transmitFormat.channelCount) channels")
         
-        // Connect input to main mixer for monitoring
-        audioEngine.connect(inputNode, to: monitorMixer, format: inputFormat)
-        audioEngine.connect(monitorMixer, to: audioEngine.mainMixerNode, format: inputFormat)
-        
-        // Set initial monitoring volume (muted by default)
-        monitorMixer.outputVolume = isMonitoringEnabled ? 0.5 : 0.0
-        
-        // Install the simplest possible tap
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            self?.processAudioBuffer(buffer)
+        // Install tap on input for recording
+        inputNode.installTap(onBus: 0, bufferSize: 256, format: nil) { [weak self] buffer, time in
+            self?.processInputAudio(buffer: buffer, format: transmitFormat)
         }
+        
+        // Attach player node for playback of received audio
+        audioEngine.attach(playerNode)
+        audioEngine.connect(playerNode, to: mainMixer, format: transmitFormat)
+        
+        // Prepare the engine
+        audioEngine.prepare()
+    }
+    
+    // MARK: - Recording Control
+    
+    func startRecording() {
+        guard !isRecording else { return }
         
         do {
             try audioEngine.start()
-            print("Simple audio engine started")
-        } catch {
-            print("Failed to start audio engine: \(error)")
-        }
-    }
-    
-    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        // Update local audio data
-        localAudioData.updateWithBuffer(buffer)
-        
-        // Convert to simplest possible data format
-        guard let data = bufferToData(buffer) else { return }
-        
-        print("Sending audio data: \(data.count) bytes")
-        
-        // Send immediately
-        audioDelegate?.audioManager(self, didCaptureAudioData: data)
-    }
-    
-    // MARK: - Receive Audio
-    
-    func processIncomingAudio(_ data: Data, fromPeer peerID: String) {
-        print("Received audio data from \(peerID): \(data.count) bytes")
-        
-        guard let buffer = dataToBuffer(data) else {
-            print("Failed to convert data to buffer for \(peerID)")
-            return
-        }
-        
-        // Update peer audio data
-        let peerAudioData = getAudioDataForPeer(peerID)
-        peerAudioData.updateWithBuffer(buffer)
-        
-        // Play immediately
-        playAudioBuffer(buffer, forPeer: peerID)
-    }
-    
-    private func playAudioBuffer(_ buffer: AVAudioPCMBuffer, forPeer peerID: String) {
-        guard let audioEngine = audioEngine, audioEngine.isRunning else {
-            print("Audio engine not running for \(peerID)")
-            return
-        }
-        
-        let playerNode: AVAudioPlayerNode
-        if let existingNode = playerNodes[peerID] {
-            playerNode = existingNode
-        } else {
-            print("Creating new player node for \(peerID)")
-            playerNode = AVAudioPlayerNode()
-            audioEngine.attach(playerNode)
-            
-            // Use buffer's native format to avoid conversion
-            audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: buffer.format)
-            playerNodes[peerID] = playerNode
-            
             playerNode.play()
-            print("Started player node for \(peerID)")
-        }
-        
-        // Schedule the buffer
-        if playerNode.isPlaying {
-            playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
-            print("Scheduled buffer for \(peerID): \(buffer.frameLength) frames")
-        } else {
-            print("Player node not playing for \(peerID)")
+            isRecording = true
+            print("🎤 Recording started")
+        } catch {
+            print("❌ Failed to start audio engine: \(error)")
         }
     }
     
-    // MARK: - Simple Data Conversion
-    
-    private func bufferToData(_ buffer: AVAudioPCMBuffer) -> Data? {
-        guard let channelData = buffer.floatChannelData?[0] else { return nil }
-        let frameLength = Int(buffer.frameLength)
-        guard frameLength > 0 else { return nil }
+    func stopRecording() {
+        guard isRecording else { return }
         
-        // Just send the raw float data
-        let audioData = Data(bytes: channelData, count: frameLength * MemoryLayout<Float>.size)
-        return audioData
+        audioEngine.stop()
+        playerNode.stop()
+        isRecording = false
+        print("⏹️ Recording stopped")
     }
     
-    private func dataToBuffer(_ data: Data) -> AVAudioPCMBuffer? {
-        let frameCount = data.count / MemoryLayout<Float>.size
-        guard frameCount > 0 else { return nil }
+    // MARK: - Audio Processing
+    
+    private func processInputAudio(buffer: AVAudioPCMBuffer, format: AVAudioFormat) {
+        // Convert to desired format and send
+        guard let convertedBuffer = convertBuffer(buffer, to: format) else { return }
         
-        // Use a standard format - 48kHz, 1 channel
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)) else {
+        // Calculate audio level for visualization
+        if let channelData = convertedBuffer.int16ChannelData {
+            let channelDataValue = channelData.pointee
+            let frames = Int(convertedBuffer.frameLength)
+            
+            var sum: Float = 0
+            for i in 0..<frames {
+                let sample = Float(channelDataValue[i]) / Float(Int16.max)
+                sum += abs(sample)
+            }
+            let avgLevel = sum / Float(frames)
+            
+            DispatchQueue.main.async {
+                self.audioLevel = avgLevel
+            }
+        }
+        
+        // Convert buffer to Data and send via network
+        if let data = bufferToData(convertedBuffer) {
+            onAudioData?(data)
+        }
+    }
+    
+    // MARK: - Receiving Audio
+    
+    func receiveAudioData(_ data: Data) {
+        guard let buffer = dataToBuffer(data, format: AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16000,
+            channels: 1,
+            interleaved: true
+        )!) else { return }
+        
+        // Schedule buffer for playback immediately
+        playerNode.scheduleBuffer(buffer, completionHandler: nil)
+    }
+    
+    // MARK: - Buffer Conversion Utilities
+    
+    private func convertBuffer(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard let converter = AVAudioConverter(from: buffer.format, to: format) else {
             return nil
         }
         
-        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let ratio = format.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
         
-        // Copy the data directly
-        data.withUnsafeBytes { bytes in
-            let floatBytes = bytes.bindMemory(to: Float.self)
-            buffer.floatChannelData?[0].update(from: floatBytes.baseAddress!, count: frameCount)
+        guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else {
+            return nil
+        }
+        
+        var error: NSError?
+        let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        
+        converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
+        
+        if let error = error {
+            print("❌ Conversion error: \(error)")
+            return nil
+        }
+        
+        convertedBuffer.frameLength = convertedBuffer.frameCapacity
+        return convertedBuffer
+    }
+    
+    private func bufferToData(_ buffer: AVAudioPCMBuffer) -> Data? {
+        guard let channelData = buffer.int16ChannelData else { return nil }
+        
+        let channelDataValue = channelData.pointee
+        let channelDataValueArray = stride(from: 0,
+                                           to: Int(buffer.frameLength),
+                                           by: buffer.stride).map { channelDataValue[$0] }
+        
+        return Data(bytes: channelDataValueArray, count: channelDataValueArray.count * MemoryLayout<Int16>.size)
+    }
+    
+    private func dataToBuffer(_ data: Data, format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        let frameCount = AVAudioFrameCount(data.count) / format.streamDescription.pointee.mBytesPerFrame
+        
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            return nil
+        }
+        
+        buffer.frameLength = frameCount
+        
+        guard let channelData = buffer.int16ChannelData else { return nil }
+        
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+            guard let baseAddress = bytes.baseAddress else { return }
+            channelData.pointee.update(from: baseAddress.assumingMemoryBound(to: Int16.self), count: Int(frameCount))
         }
         
         return buffer
-    }
-    
-    // MARK: - Settings
-    
-    func updateSettings(_ settings: AudioSettings) {
-        self.audioSettings = settings
-        
-        // Apply monitoring settings immediately
-        isMonitoringEnabled = settings.enableMonitoring
-        if let monitorMixer = monitorMixer {
-            monitorMixer.outputVolume = settings.enableMonitoring ? Float(settings.monitoringVolume) : 0.0
-        }
-        
-        if audioSettings?.enableLogging == true {
-            print("Audio settings updated: \(settings.audioFormat.rawValue), \(settings.sampleRate.description), \(settings.bufferSize.description)")
-        }
-    }
-    
-    // MARK: - Monitoring & Cleanup
-    
-    func toggleMonitoring(enabled: Bool) {
-        isMonitoringEnabled = enabled
-        
-        // Update settings if available
-        audioSettings?.enableMonitoring = enabled
-        audioSettings?.saveSettings()
-        
-        // Adjust the monitoring volume
-        if let monitorMixer = monitorMixer {
-            let volume = enabled ? Float(audioSettings?.monitoringVolume ?? 0.5) : 0.0
-            monitorMixer.outputVolume = volume
-        }
-        
-        if audioSettings?.enableLogging == true {
-            print("Monitoring \(enabled ? "enabled" : "disabled")")
-        }
-    }
-    
-    func cleanupPeer(_ peerID: String) {
-        playerNodes[peerID]?.stop()
-        playerNodes.removeValue(forKey: peerID)
-        participantAudioData.removeValue(forKey: peerID)
-    }
-    
-    @objc private func audioRouteChanged() {
-        checkHeadphones()
-    }
-    
-    private func checkHeadphones() {
-        let outputs = audioSession.currentRoute.outputs
-        let hasHeadphones = outputs.contains { output in
-            [.headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE].contains(output.portType)
-        }
-        
-        DispatchQueue.main.async {
-            self.isHeadphonesConnected = hasHeadphones
-        }
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-        stopAudioEngine()
     }
 }
