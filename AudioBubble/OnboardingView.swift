@@ -59,9 +59,9 @@ struct OnboardingView: View {
                             }) {
                                 HStack {
                                     Text("Next")
+                                        .font(.body.weight(.semibold))
                                     Image(systemName: "arrow.right")
                                 }
-                                .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 30)
                                 .padding(.vertical, 12)
@@ -72,9 +72,9 @@ struct OnboardingView: View {
                             Button(action: completeOnboarding) {
                                 HStack {
                                     Text("Get Started")
+                                        .font(.body.weight(.semibold))
                                     Image(systemName: "arrow.right")
                                 }
-                                .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 30)
                                 .padding(.vertical, 12)
