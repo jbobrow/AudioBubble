@@ -2,10 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Audio Bubble needs microphone access to enable voice chat with nearby devices.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Audio Bubble uses local network to discover and connect with nearby devices for voice chat.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_audio-bubble._tcp</string>
 		<string>_audio-bubble._udp</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
 	</array>
 </dict>
 </plist>
