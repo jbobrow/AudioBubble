@@ -51,6 +51,26 @@ never yourself. The goals are superb audio quality and the lowest latency we can
      2.5 ms). Each underrun raises the margin; clean periods slowly lower it again.
    - Excess latency and clock drift are removed by playing ±0.5–1 % faster or slower
      through a cubic resampler. That's inaudible, with no skips or clicks.
+   - **Peer-to-peer comes first — the app must work with no Wi-Fi network at all.**
+     With `includePeerToPeer`, Network.framework uses AWDL, the direct Wi-Fi link that
+     AirDrop uses, whenever there's no shared access point. Rules:
+     - Set `includePeerToPeer = true` on the listener, the browser *and* every connection.
+     - Connect to the Bonjour **service endpoint**, never a resolved IP address, so the
+       system can route over AWDL (`awdl0`).
+     - The data path must never assume there's a router or DHCP address. No IP
+       literals, and no multicast or broadcast for audio.
+     - Wi-Fi must be *on*, but it doesn't need to be joined to a network, and airplane
+       mode with Wi-Fi on works. If no one is found after a few seconds, the empty state
+       says "Keep Wi-Fi on. No network needed."
+     - Don't use Bluetooth for audio: its bandwidth and latency can't carry this. That
+       ruled out MultipeerConnectivity's Bluetooth fallback.
+     - AWDL latency spikes: AWDL periodically hops channels, which causes bursts of
+       delay of tens of milliseconds. The jitter buffer's upper limit must absorb these
+       (up to 150 ms) and then drain back down automatically.
+     - Test the no-network case first: two phones with Wi-Fi on, joined to no network.
+   - Worth evaluating later: the iOS 26 **Wi-Fi Aware** framework, a standard
+     peer-to-peer Wi-Fi link that may give steadier latency than AWDL. It needs an
+     entitlement and a device-pairing step, so it's not the default.
 5. **Membership: leaderless and eventually consistent.** Every peer sends a small hello
    about once a second with its id, name, color and current `bubbleID`. The bubble is simply
    "everyone advertising my `bubbleID`". Invite and accept messages are sent several times
@@ -63,7 +83,7 @@ never yourself. The goals are superb audio quality and the lowest latency we can
    latency shown is one-way network time + jitter-buffer depth + hardware I/O latency.
 
 Expected mouth-to-ear latency on good Wi-Fi: about 5 ms I/O + 5 ms framing + 2–10 ms
-network + 3–10 ms jitter buffer + about 5 ms output, so **about 20–35 ms**. Previous
+network + 3–10 ms jitter buffer (more over AWDL during channel hops) + about 5 ms output, so **about 20–35 ms**. Previous
 builds measured 100 ms or more. Bluetooth HFP to AirPods adds its own link latency
 on top.
 
@@ -91,5 +111,5 @@ on top.
 - Unit tests for the Core module: jitter buffer under simulated jitter, loss and
   reordering; the concealment output; wire-protocol round trips.
 - `xcodebuild` for iOS, run on the Mac.
-- Test on two devices: discovery, invite/accept, audio in both directions, the
+- Test on two devices **with no Wi-Fi network**, then on shared Wi-Fi: discovery, invite/accept, audio in both directions, the
   latency readout, and background/lock-screen behavior.
