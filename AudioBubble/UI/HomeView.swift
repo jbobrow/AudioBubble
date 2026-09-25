@@ -144,8 +144,12 @@ struct PeerBubble: View {
     let size: CGFloat
     var invited = false
 
+    /// How far the dashed "invited" ring sits outside the bubble.
+    private static let ringInset: CGFloat = 7
+
     var body: some View {
-        VStack(spacing: 6) {
+        // Leave room for the ring even when it isn't shown, so the name doesn't jump on invite.
+        VStack(spacing: Self.ringInset + 7) {
             ZStack {
                 Circle()
                     .fill(Color.bubble(peer.hue).gradient)
@@ -155,7 +159,7 @@ struct PeerBubble: View {
                     Circle()
                         .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
                         .foregroundStyle(.white.opacity(0.9))
-                        .padding(-7)
+                        .padding(-Self.ringInset)
                 }
             }
             .frame(width: size, height: size)
