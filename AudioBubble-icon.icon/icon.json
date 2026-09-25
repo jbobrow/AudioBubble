@@ -1,0 +1,54 @@
+{
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "lighten",
+          "fill" : {
+            "solid" : "display-p3:0.00000,0.67046,0.96783,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "bubble-1@4x 2.png",
+          "name" : "bubble-1@4x 2",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.26,
+            "translation-in-points" : [
+              -102,
+              -39
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "solid" : "display-p3:0.96783,0.44004,0.49512,1.00000"
+          },
+          "image-name" : "bubble-1@4x 2.png",
+          "name" : "bubble-1@4x 2",
+          "position" : {
+            "scale" : 0.2,
+            "translation-in-points" : [
+              163,
+              105
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
