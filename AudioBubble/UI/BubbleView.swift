@@ -36,6 +36,10 @@ struct BubbleView: View {
         let level: Float
         let latency: Double?
         let isMe: Bool
+        /// "direct", "via network" — how their audio reaches you.
+        var link: String?
+        var onWiFi = false
+        var echoSuppressed = false
     }
 
     private var participants: [Participant] {
@@ -47,7 +51,10 @@ struct BubbleView: View {
         for member in model.members {
             list.append(Participant(id: member.id, name: member.name, initial: String(member.name.prefix(1)), hue: member.hue,
                                     level: model.level(of: member.id),
-                                    latency: model.latencyMilliseconds(from: member.id), isMe: false))
+                                    latency: model.latencyMilliseconds(from: member.id), isMe: false,
+                                    link: member.isDirect.map { $0 ? "direct" : "via network" },
+                                    onWiFi: member.onWiFi,
+                                    echoSuppressed: model.isSuppressingEcho(from: member.id)))
         }
         return list
     }
@@ -67,6 +74,10 @@ struct BubbleView: View {
 
     private var controls: some View {
         VStack(spacing: 12) {
+            if model.shouldAdviseLeavingWiFi {
+                WiFiAdviceCard()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if model.members.isEmpty {
                 Text(model.outgoingInvites.isEmpty ? "Everyone else has left" : "Waiting for them to join…")
                     .font(.subheadline)
@@ -121,9 +132,21 @@ struct MemberGlow: View {
                 .font(.footnote.weight(.medium))
                 .lineLimit(1)
             if let latency = participant.latency {
-                Text("\(Int(latency.rounded())) ms")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text("\(Int(latency.rounded())) ms")
+                    if let link = participant.link { Text("· \(link)") }
+                    if participant.onWiFi {
+                        Image(systemName: "wifi")
+                            .accessibilityLabel("on a Wi-Fi network")
+                    }
+                    if participant.echoSuppressed {
+                        // Their mic hears you; your voice is being removed from their stream.
+                        Image(systemName: "person.wave.2")
+                            .accessibilityLabel("removing your voice from their audio")
+                    }
+                }
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -131,25 +154,74 @@ struct MemberGlow: View {
     }
 }
 
-/// Estimated mouth-to-ear latency, averaged over the bubble.
+/// Estimated mouth-to-ear latency, averaged over the bubble. Tap for the breakdown.
 struct LatencyReadout: View {
     @Environment(AppModel.self) private var model
+    @State private var showsDetails = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-            let latencies = model.members.compactMap { model.latencyMilliseconds(from: $0.id) }
-            HStack(spacing: 6) {
-                Image(systemName: "waveform")
-                if latencies.isEmpty {
-                    Text("Measuring latency…")
-                } else {
-                    let average = latencies.reduce(0, +) / Double(latencies.count)
-                    Text("~\(Int(average.rounded())) ms mouth to ear")
-                        .monospacedDigit()
+            let parts = model.members.compactMap { model.latencyBreakdown(from: $0.id) }
+            VStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform")
+                    if parts.isEmpty {
+                        Text("Measuring latency…")
+                    } else {
+                        Text("~\(Self.ms(parts.map(\.total))) ms mouth to ear")
+                        Image(systemName: showsDetails ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                    }
+                }
+                if showsDetails, !parts.isEmpty {
+                    Text("network \(Self.ms(parts.map(\.network))) · buffer \(Self.ms(parts.map(\.buffer))) · processing \(Self.ms(parts.map(\.processing))) · audio hardware \(Self.ms(parts.map(\.hardware))) ms")
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
                 }
             }
+            .monospacedDigit()
             .font(.footnote)
             .foregroundStyle(.secondary)
+            .contentShape(.rect)
+            .onTapGesture { withAnimation(.snappy) { showsDetails.toggle() } }
         }
+    }
+
+    private static func ms(_ values: [Double]) -> Int {
+        Int((values.reduce(0, +) / Double(max(values.count, 1))).rounded())
+    }
+}
+
+/// iOS won't let apps leave a Wi-Fi network, so explain the one-tap way to do it.
+struct WiFiAdviceCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.title3)
+                .foregroundStyle(.yellow)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Leave Wi-Fi for clearer, faster audio")
+                    .font(.subheadline.weight(.semibold))
+                Text("Open Control Center and tap Wi-Fi. You'll leave the network, but Wi-Fi stays on for nearby devices, which is all your bubble needs.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button {
+                withAnimation { model.wifiAdviceDismissed = true }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Not now")
+        }
+        .padding(12)
+        .background(.white.opacity(0.08), in: .rect(cornerRadius: 16))
+        .padding(.horizontal)
     }
 }

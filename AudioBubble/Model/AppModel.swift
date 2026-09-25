@@ -24,6 +24,10 @@ final class AppModel {
     /// When we started looking, for the empty state.
     let searchStarted = Date()
     private(set) var micModeName = AudioSessionController.micModeName
+    /// Whether this phone is joined to a Wi-Fi network (slower, less reliable bubbles).
+    private(set) var isOnWiFiNetwork = false
+    /// The user dismissed the "disconnect from Wi-Fi" advice for this session.
+    var wifiAdviceDismissed = false
 
     // MARK: Engine
 
@@ -33,6 +37,7 @@ final class AppModel {
     @ObservationIgnored private let session: AudioSessionController
     @ObservationIgnored private let transport: MeshTransport
     @ObservationIgnored private let sender: AudioSender
+    @ObservationIgnored private let wifiMonitor = WiFiMonitor()
     @ObservationIgnored private var heartbeat: Task<Void, Never>?
     @ObservationIgnored private var seenMessageIDs: Set<UUID> = []
     @ObservationIgnored private var lastHadCompany = Date()
@@ -52,6 +57,12 @@ final class AppModel {
         sender = AudioSender(engine: engine, transport: transport)
         transport.onControl = { [weak self] sender, message in self?.handle(message, from: sender) }
         transport.onDiscoveryChanged = { [weak self] peers in self?.discovered = peers }
+        transport.onLinkChanged = { [weak self] peer, interface in self?.peers[peer]?.linkInterface = interface }
+        wifiMonitor.onChange = { [weak self] joined in
+            guard let self, joined != isOnWiFiNetwork else { return }
+            isOnWiFiNetwork = joined
+            sendHellos()
+        }
         if identity != nil { start() }
     }
 
@@ -84,11 +95,25 @@ final class AppModel {
     /// Your own mic level (0...1), zero when muted.
     var myLevel: Float { isMuted ? 0 : engine.micLevel }
 
-    /// Estimated mouth-to-ear latency from a member to you, in milliseconds:
-    /// one-way network time (RTT / 2) + jitter-buffer depth + framing + hardware I/O.
+    /// Estimated mouth-to-ear latency from a member to you, in milliseconds.
     func latencyMilliseconds(from peer: UInt64) -> Double? {
+        latencyBreakdown(from: peer)?.total
+    }
+
+    /// Where the latency from a member comes from.
+    func latencyBreakdown(from peer: UInt64) -> LatencyBreakdown? {
         guard let rtt = peers[peer]?.rttMilliseconds, let depth = streams.depthMilliseconds(of: peer) else { return nil }
-        return rtt / 2 + depth + AudioFormat.frameDuration * 1000 + session.hardwareLatencyMilliseconds
+        return LatencyBreakdown(network: rtt / 2, buffer: depth,
+                                processing: AudioFormat.frameDuration * 1000 + AudioFormat.milliseconds(samples: SpectralTransform.hop),
+                                hardware: session.hardwareLatencyMilliseconds)
+    }
+
+    /// Whether your own voice is being removed from a member's stream (their mic hears you).
+    func isSuppressingEcho(from peer: UInt64) -> Bool { streams.isSuppressingEcho(from: peer) }
+
+    /// Show the advice to leave the Wi-Fi network: in a bubble, joined to a network, not dismissed.
+    var shouldAdviseLeavingWiFi: Bool {
+        bubbleID != nil && isOnWiFiNetwork && !wifiAdviceDismissed
     }
 
     // MARK: Actions
@@ -152,6 +177,7 @@ final class AppModel {
 
     private func start() {
         AudioSessionController.requestMicrophonePermission()
+        wifiMonitor.start()
         transport.start()
         heartbeat?.cancel()
         heartbeat = Task { [weak self] in
@@ -188,7 +214,7 @@ final class AppModel {
             let depth = streams.depthMilliseconds(of: member.id) ?? -1
             let latency = latencyMilliseconds(from: member.id) ?? -1
             let rtt = member.rttMilliseconds ?? -1
-            log.debug("member \(member.name): rtt \(rtt, format: .fixed(precision: 1)) ms, buffer \(depth, format: .fixed(precision: 1)) ms, level \(self.level(of: member.id)), latency \(latency, format: .fixed(precision: 1)) ms, mic \(self.myLevel)")
+            log.debug("member \(member.name) [\(member.linkInterface ?? "?")\(member.onWiFi ? ", on Wi-Fi" : "")\(self.isSuppressingEcho(from: member.id) ? ", echo suppressed" : "")]: rtt \(rtt, format: .fixed(precision: 1)) ms, buffer \(depth, format: .fixed(precision: 1)) ms, level \(self.level(of: member.id)), latency \(latency, format: .fixed(precision: 1)) ms, mic \(self.myLevel)")
         }
     }
     #endif
@@ -238,7 +264,8 @@ final class AppModel {
             let hello = ControlMessage.Hello(
                 name: identity.name, hue: identity.hue, bubble: bubbleID, time: now,
                 echoTime: known?.lastHelloTime,
-                echoHold: known.map { now &- $0.lastSeen })
+                echoHold: known.map { now &- $0.lastSeen },
+                onWiFi: isOnWiFiNetwork)
             transport.send(.hello(hello), to: id)
         }
     }
@@ -288,6 +315,7 @@ final class AppModel {
         peer.bubble = hello.bubble
         peer.lastSeen = now
         peer.lastHelloTime = hello.time
+        peer.onWiFi = hello.onWiFi ?? false
 
         if let echo = hello.echoTime, let hold = hello.echoHold, now > echo &+ hold {
             let rtt = Double(now - echo - hold) / 1000

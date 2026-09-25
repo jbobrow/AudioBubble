@@ -41,6 +41,8 @@ nonisolated final class MeshTransport: @unchecked Sendable {
     var onControl: (@MainActor (_ sender: UInt64, _ message: ControlMessage) -> Void)?
     /// Called on the main queue when the set of peers visible through Bonjour changes.
     var onDiscoveryChanged: (@MainActor (_ peers: Set<UInt64>) -> Void)?
+    /// Called on the main queue with the interface our link to a peer uses (e.g. "awdl0", "en0").
+    var onLinkChanged: (@MainActor (_ peer: UInt64, _ interface: String?) -> Void)?
 
     init(localID: UInt64, streams: StreamTable) {
         self.localID = localID
@@ -56,6 +58,11 @@ nonisolated final class MeshTransport: @unchecked Sendable {
     }
 
     static func serviceName(for id: UInt64) -> String { String(format: "%016llx", id) }
+
+    /// AWDL (`awdl0`) and its low-latency companion (`llw0`) are the direct, no-network link.
+    static func isPeerToPeer(interfaceName: String) -> Bool {
+        interfaceName.hasPrefix("awdl") || interfaceName.hasPrefix("llw")
+    }
 
     // MARK: Lifecycle
 
@@ -138,6 +145,8 @@ nonisolated final class MeshTransport: @unchecked Sendable {
         for id in browsed.subtracting(visible) {
             outbound.removeValue(forKey: id)?.cancel()
             inbound.removeValue(forKey: id)?.cancel()
+            let callback = onLinkChanged
+            DispatchQueue.main.async { callback?(id, nil) }
         }
         for (id, endpoint) in endpoints where outbound[id] == nil {
             connect(to: id, endpoint: endpoint)
@@ -156,6 +165,7 @@ nonisolated final class MeshTransport: @unchecked Sendable {
             switch state {
             case .ready:
                 rebuildAudioTargets()
+                reportLink(of: connection, to: id)
             case let .failed(error):
                 log.info("link to \(Self.serviceName(for: id)) failed: \(String(describing: error))")
                 connection.cancel()
@@ -171,8 +181,18 @@ nonisolated final class MeshTransport: @unchecked Sendable {
             default: break
             }
         }
+        connection.pathUpdateHandler = { [weak self, weak connection] _ in
+            guard let self, let connection, outbound[id] === connection else { return }
+            reportLink(of: connection, to: id)
+        }
         connection.start(queue: queue)
         receive(on: connection)
+    }
+
+    private func reportLink(of connection: NWConnection, to id: UInt64) {
+        let name = connection.currentPath?.availableInterfaces.first?.name
+        let callback = onLinkChanged
+        DispatchQueue.main.async { callback?(id, name) }
     }
 
     private func accept(_ connection: NWConnection) {

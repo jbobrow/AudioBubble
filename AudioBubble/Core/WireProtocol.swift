@@ -118,6 +118,8 @@ nonisolated enum ControlMessage: Codable, Equatable, Sendable {
         var echoTime: UInt64?
         /// Microseconds between receiving `echoTime` and sending this hello.
         var echoHold: UInt64?
+        /// Whether the sender is joined to a Wi-Fi network (which slows its direct links).
+        var onWiFi: Bool?
     }
 
     struct Invite: Codable, Equatable, Sendable {
