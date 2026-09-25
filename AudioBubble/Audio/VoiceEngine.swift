@@ -7,6 +7,8 @@ import Synchronization
 ///
 /// - Input callback: renders the processed mic into `captureRing` and wakes the sender.
 /// - Output callback: fills the speaker from `streams` — remote peers only, never the local mic.
+///   (The mic is also handed to `streams` as the reference for removing your own voice from
+///   peers' streams.)
 ///
 /// Both callbacks run on the real-time audio thread: no locks, no allocation, no Swift runtime
 /// work beyond atomics.
@@ -152,6 +154,7 @@ nonisolated final class VoiceEngine: @unchecked Sendable {
         inputLevel.store(smoothedInputLevel.bitPattern, ordering: .relaxed)
 
         captureRing.write(inputBuffer, count: count)
+        streams.referenceRing.write(inputBuffer, count: count)
         captureSignal.signal()
         return noErr
     }
