@@ -171,7 +171,27 @@ final class AppModel {
         }
         micModeName = AudioSessionController.micModeName
         reconcile()
+        #if DEBUG
+        debugAutomation()
+        #endif
     }
+
+    #if DEBUG
+    /// Launch with `-autoInvite` / `-autoAccept` to test two simulators or devices hands-free.
+    private func debugAutomation() {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-autoAccept"), incomingInvite != nil { acceptInvite() }
+        if arguments.contains("-autoInvite"), bubbleID == nil, outgoingInvites.isEmpty, let first = nearby.first {
+            invite(first.id)
+        }
+        for member in members {
+            let depth = streams.depthMilliseconds(of: member.id) ?? -1
+            let latency = latencyMilliseconds(from: member.id) ?? -1
+            let rtt = member.rttMilliseconds ?? -1
+            log.debug("member \(member.name): rtt \(rtt, format: .fixed(precision: 1)) ms, buffer \(depth, format: .fixed(precision: 1)) ms, level \(self.level(of: member.id)), latency \(latency, format: .fixed(precision: 1)) ms, mic \(self.myLevel)")
+        }
+    }
+    #endif
 
     private func join(_ bubble: UUID) {
         bubbleID = bubble

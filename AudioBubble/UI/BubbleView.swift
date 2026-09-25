@@ -1,0 +1,155 @@
+import SwiftUI
+
+/// The bubble you're in: everyone gathered in one large circle, glowing with their voice.
+struct BubbleView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 20) {
+            GeometryReader { geometry in
+                let diameter = min(geometry.size.width, geometry.size.height) - 24
+                TimelineView(.animation) { _ in
+                    ZStack {
+                        Circle()
+                            .fill(.white.opacity(0.05))
+                            .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                            .frame(width: diameter, height: diameter)
+                        ForEach(Array(participants.enumerated()), id: \.element.id) { index, participant in
+                            MemberGlow(participant: participant, size: memberSize(diameter))
+                                .position(position(index: index, count: participants.count,
+                                                   diameter: diameter, in: geometry.size))
+                        }
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+            }
+            controls
+        }
+        .padding(.top, 8)
+    }
+
+    struct Participant: Identifiable {
+        let id: UInt64
+        let name: String
+        let initial: String
+        let hue: Double
+        let level: Float
+        let latency: Double?
+        let isMe: Bool
+    }
+
+    private var participants: [Participant] {
+        var list: [Participant] = []
+        if let identity = model.identity {
+            list.append(Participant(id: model.localID, name: "You", initial: String(identity.name.prefix(1)), hue: identity.hue,
+                                    level: model.myLevel, latency: nil, isMe: true))
+        }
+        for member in model.members {
+            list.append(Participant(id: member.id, name: member.name, initial: String(member.name.prefix(1)), hue: member.hue,
+                                    level: model.level(of: member.id),
+                                    latency: model.latencyMilliseconds(from: member.id), isMe: false))
+        }
+        return list
+    }
+
+    private func memberSize(_ diameter: CGFloat) -> CGFloat {
+        let count = CGFloat(max(participants.count, 1))
+        return min(110, diameter / (count > 4 ? 3.6 : 2.8))
+    }
+
+    private func position(index: Int, count: Int, diameter: CGFloat, in size: CGSize) -> CGPoint {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        guard count > 1 else { return center }
+        let radius = diameter / 2 - memberSize(diameter) * 0.75
+        let angle = -Double.pi / 2 + Double(index) / Double(count) * 2 * .pi
+        return CGPoint(x: center.x + radius * CGFloat(cos(angle)), y: center.y + radius * CGFloat(sin(angle)))
+    }
+
+    private var controls: some View {
+        VStack(spacing: 12) {
+            if model.members.isEmpty {
+                Text(model.outgoingInvites.isEmpty ? "Everyone else has left" : "Waiting for them to join…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                LatencyReadout()
+            }
+            HStack(spacing: 16) {
+                Button(action: model.toggleMute) {
+                    Label(model.isMuted ? "Unmute" : "Mute",
+                          systemImage: model.isMuted ? "mic.slash.fill" : "mic.fill")
+                        .frame(minWidth: 110)
+                }
+                .buttonStyle(.bordered)
+                .tint(model.isMuted ? .red : .white)
+
+                Button(role: .destructive, action: model.leaveBubble) {
+                    Label("Leave", systemImage: "xmark")
+                        .frame(minWidth: 110)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red.opacity(0.8))
+            }
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+        }
+    }
+}
+
+struct MemberGlow: View {
+    let participant: BubbleView.Participant
+    let size: CGFloat
+
+    var body: some View {
+        let level = CGFloat(min(1, sqrt(participant.level) * 1.6))
+        let color = Color.bubble(participant.hue)
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.35))
+                    .scaleEffect(1 + level * 0.45)
+                    .blur(radius: 10 + level * 10)
+                Circle()
+                    .fill(color.gradient)
+                    .shadow(color: color.opacity(0.4 + level * 0.6), radius: 6 + level * 22)
+                Text(participant.initial.uppercased())
+                    .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.6))
+            }
+            .frame(width: size, height: size)
+            Text(participant.name)
+                .font(.footnote.weight(.medium))
+                .lineLimit(1)
+            if let latency = participant.latency {
+                Text("\(Int(latency.rounded())) ms")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(participant.isMe ? "You" : participant.name)
+    }
+}
+
+/// Estimated mouth-to-ear latency, averaged over the bubble.
+struct LatencyReadout: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+            let latencies = model.members.compactMap { model.latencyMilliseconds(from: $0.id) }
+            HStack(spacing: 6) {
+                Image(systemName: "waveform")
+                if latencies.isEmpty {
+                    Text("Measuring latency…")
+                } else {
+                    let average = latencies.reduce(0, +) / Double(latencies.count)
+                    Text("~\(Int(average.rounded())) ms mouth to ear")
+                        .monospacedDigit()
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+    }
+}
