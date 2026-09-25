@@ -333,12 +333,14 @@ final class AppModel {
     }
 
     #if DEBUG
-    /// Launch with `-autoInvite` / `-autoAccept` to test two simulators or devices hands-free.
+    /// Launch with `-autoInvite <name>` / `-autoAccept` to test two simulators or devices
+    /// hands-free. Give `-autoInvite` a name so a test run never invites a real phone nearby.
     private func debugAutomation() {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-autoAccept"), incomingInvite != nil { acceptInvite() }
-        if arguments.contains("-autoInvite"), bubbleID == nil, outgoingInvites.isEmpty, let first = nearby.first {
-            invite(first.id)
+        if let index = arguments.firstIndex(of: "-autoInvite"), bubbleID == nil, outgoingInvites.isEmpty {
+            let name = index + 1 < arguments.count && !arguments[index + 1].hasPrefix("-") ? arguments[index + 1] : nil
+            if let target = nearby.first(where: { name == nil || $0.name == name }) { invite(target.id) }
         }
         for member in members {
             let depth = streams.depthMilliseconds(of: member.id) ?? -1

@@ -113,7 +113,7 @@ Debug builds also take launch arguments:
 
 | Argument | Effect |
 |---|---|
-| `-autoInvite` | Invite the first person found |
+| `-autoInvite [name]` | Invite the person with that name (or, without a name, the first person found; careful, that can be a real phone nearby) |
 | `-autoAccept` | Accept any invite |
 | `-introPage <0-3>` | Open the introduction on a given page |
 | `-nameStep` | Open the name and color step |
