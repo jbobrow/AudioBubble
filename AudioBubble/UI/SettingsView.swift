@@ -14,19 +14,19 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        Spacer()
-                        EditableAvatar(name: name, hue: hue, avatar: $avatar)
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
                     TextField("Name", text: $name)
                         .textContentType(.givenName)
                         .submitLabel(.done)
                     ColorSwatches(hue: $hue)
                         .padding(.vertical, 6)
                 } header: {
-                    Text("You")
+                    // Above the group rather than a clear row inside it, so the group keeps its
+                    // rounded top.
+                    EditableAvatar(name: name, hue: hue, avatar: $avatar)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
+                        .padding(.bottom, 16)
+                        .textCase(nil)
                 } footer: {
                     Text("Tap your bubble to use a Memoji or emoji. People nearby see your name, color and bubble.")
                 }
