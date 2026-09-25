@@ -84,17 +84,22 @@ enum DebugSettings {
     static let key = "debugMode"
 }
 
-/// Shown whenever no headphones are connected: the app is built around them.
+/// Shown whenever no headphones are connected: they're required to be in a bubble.
 struct HeadphonesNotice: View {
+    /// In a bubble, your audio is paused until they're back.
+    var paused = false
+
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "airpods")
+            Image(systemName: paused ? "pause.circle.fill" : "airpods")
                 .font(.title3)
-                .foregroundStyle(.white)
+                .foregroundStyle(paused ? .yellow : .white)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Connect your headphones")
+                Text(paused ? "Your bubble is paused" : "Connect headphones to join a bubble")
                     .font(.subheadline.weight(.semibold))
-                Text("Audio Bubble is made for AirPods or other headphones. From the speaker, people nearby hear your bubble too.")
+                Text(paused
+                     ? "Put your headphones back in to keep talking. You won't hear or send audio until you do."
+                     : "Audio Bubble works with AirPods or other headphones, so only the people in your bubble hear it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -12,8 +12,8 @@ See [PLAN.md](PLAN.md) for the original design and the reasoning behind it.
 
 1. **First launch:** a short introduction, then choose your name, a color, and optionally a
    Memoji or emoji for your bubble.
-2. **Put in your headphones.** The app is made for AirPods or other headphones and shows a
-   notice when none are connected.
+2. **Put in your headphones.** They're required: without them you can't start or join a
+   bubble, and if they come out mid-bubble your audio pauses until they're back.
 3. **Nearby people float as bubbles.** Tap someone to invite them. They get a banner,
    *"Jon wants to bubble with you"*, with **Join** and **Not now**.
 4. **In a bubble:** everyone gathers in one large circle and glows with their voice. There's
@@ -118,6 +118,7 @@ Debug builds also take launch arguments:
 | `-introPage <0-3>` | Open the introduction on a given page |
 | `-nameStep` | Open the name and color step |
 | `-showSettings` | Open Settings on launch |
+| `-assumeHeadphones` | Act as if headphones are connected (simulators have none) |
 | `-avatarPicker` | With `-showSettings` or `-nameStep`, also open the Memoji picker |
 
 They also log each member's round trip, buffer depth, link and estimated latency once a

@@ -20,6 +20,11 @@ struct RootView: View {
                     .zIndex(1)
             }
         }
+        .alert("Connect your headphones", isPresented: Bindable(model).showsHeadphonesRequired) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("You need headphones to be in an audio bubble. Put in your AirPods or connect other headphones, then try again.")
+        }
         .animation(.spring(duration: 0.5), value: model.identity == nil)
         .animation(.spring(duration: 0.45), value: model.incomingInvite)
     }

@@ -3,13 +3,12 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var showsSettings = DebugLaunch.has("-showSettings")
-    @State private var showsHeadphonesAlert = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
             if !model.headphonesConnected {
-                HeadphonesNotice()
+                HeadphonesNotice(paused: model.isPausedForHeadphones)
                     .padding(.horizontal)
                     .padding(.top, 10)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -39,11 +38,6 @@ struct HomeView: View {
         .sheet(isPresented: $showsSettings) {
             SettingsView()
                 .presentationDetents([.large])
-        }
-        .alert("Connect your headphones", isPresented: $showsHeadphonesAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Mic modes like Voice Isolation are for your headphones' mic. Connect AirPods or other headphones, then try again.")
         }
     }
 
@@ -90,7 +84,7 @@ struct HomeView: View {
         if model.headphonesConnected {
             model.showMicModes()
         } else {
-            showsHeadphonesAlert = true
+            model.showsHeadphonesRequired = true
         }
     }
 }

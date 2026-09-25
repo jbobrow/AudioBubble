@@ -37,7 +37,11 @@ final class AppModel {
     private(set) var myAvatarImage: UIImage?
     /// Whether headphones (AirPods, wired, …) are connected. The app is meant to be used with them.
     /// Checked once onboarding is done (see `start`), so first launch never touches the audio session early.
+    /// Headphones are required: without them you can't start or join a bubble, and a bubble you're
+    /// in pauses your audio until they're back.
     private(set) var headphonesConnected = true
+    /// Set when an action needed headphones; the UI shows "Connect your headphones".
+    var showsHeadphonesRequired = false
 
     // MARK: Engine
 
@@ -75,7 +79,9 @@ final class AppModel {
         transport.onDiscoveryChanged = { [weak self] peers in self?.discovered = peers }
         transport.onLinkChanged = { [weak self] peer, interface in self?.peers[peer]?.linkInterface = interface }
         session.onRouteChange = { [weak self] in
-            self?.headphonesConnected = AudioSessionController.headphonesConnected
+            guard let self else { return }
+            headphonesConnected = Self.checkHeadphones()
+            reconcile()
         }
         wifiMonitor.onChange = { [weak self] joined in
             guard let self, joined != isOnWiFiNetwork else { return }
@@ -264,16 +270,35 @@ final class AppModel {
         }
     }
 
+    /// Headphones connected, or the DEBUG `-assumeHeadphones` switch (simulators have none).
+    private static func checkHeadphones() -> Bool {
+        AudioSessionController.headphonesConnected || DebugLaunch.has("-assumeHeadphones")
+    }
+
+    /// True if headphones are connected; otherwise asks the user to connect them.
+    private func requireHeadphones() -> Bool {
+        headphonesConnected = Self.checkHeadphones()
+        if !headphonesConnected { showsHeadphonesRequired = true }
+        return headphonesConnected
+    }
+
+    /// Your audio is paused: you're in a bubble with people, but your headphones are out.
+    var isPausedForHeadphones: Bool {
+        bubbleID != nil && !headphonesConnected
+    }
+
     /// Invites someone into your bubble (or a new one, if you aren't in one yet).
     func invite(_ peer: UInt64) {
-        guard outgoingInvites[peer] == nil else { return }
+        guard outgoingInvites[peer] == nil, requireHeadphones() else { return }
         let invite = OutgoingInvite(id: UUID(), bubble: bubbleID ?? UUID(), sent: Date())
         outgoingInvites[peer] = invite
         repeatSend(.invite(.init(id: invite.id, bubble: invite.bubble)), to: peer)
     }
 
+    /// Joins the invite's bubble. Without headphones, the invite stays up and the user is asked to
+    /// connect them first.
     func acceptInvite() {
-        guard let invite = incomingInvite else { return }
+        guard let invite = incomingInvite, requireHeadphones() else { return }
         incomingInvite = nil
         repeatSend(.reply(.init(id: invite.id, bubble: invite.bubble, accepted: true)), to: invite.from)
         join(invite.bubble)
@@ -305,7 +330,7 @@ final class AppModel {
 
     private func start() {
         AudioSessionController.requestMicrophonePermission()
-        headphonesConnected = AudioSessionController.headphonesConnected
+        headphonesConnected = Self.checkHeadphones()
         wifiMonitor.start()
         transport.start()
         heartbeat?.cancel()
@@ -374,7 +399,8 @@ final class AppModel {
             }
         }
 
-        let shouldRun = bubbleID != nil && !memberIDs.isEmpty
+        // Never from the speaker: without headphones your audio is paused, both ways.
+        let shouldRun = bubbleID != nil && !memberIDs.isEmpty && headphonesConnected
         guard shouldRun != audioActive else { return }
         audioActive = shouldRun
         if shouldRun {
