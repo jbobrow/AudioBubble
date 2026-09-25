@@ -68,6 +68,12 @@ final class AudioSessionController {
         if wantsAudio { start() }
     }
 
+    /// Asks for the microphone up front, so joining a bubble never waits on a prompt.
+    static func requestMicrophonePermission() {
+        guard AVAudioApplication.shared.recordPermission == .undetermined else { return }
+        AVAudioApplication.requestRecordPermission { _ in }
+    }
+
     /// Opens Control Center's Mic Modes, where the user can choose Voice Isolation.
     static func showMicModes() {
         AVCaptureDevice.showSystemUserInterface(.microphoneModes)

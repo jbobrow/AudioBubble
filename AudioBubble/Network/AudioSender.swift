@@ -7,13 +7,20 @@ nonisolated final class AudioSender: @unchecked Sendable {
     private let engine: VoiceEngine
     private let transport: MeshTransport
     private let running = Atomic<Bool>(false)
-    let muted = Atomic<Bool>(false)
+    private let muted = Atomic<Bool>(false)
     private var thread: Thread?
     private var sequence: UInt32 = 0
 
     init(engine: VoiceEngine, transport: MeshTransport) {
         self.engine = engine
         self.transport = transport
+    }
+
+    /// Muted frames are still sent, as payload-less silent frames, so receivers' jitter buffers
+    /// stay primed and don't mistake mute for network trouble.
+    var isMuted: Bool {
+        get { muted.load(ordering: .relaxed) }
+        set { muted.store(newValue, ordering: .relaxed) }
     }
 
     func start() {
