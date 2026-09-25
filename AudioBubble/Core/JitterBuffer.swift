@@ -45,7 +45,9 @@ nonisolated final class JitterBuffer {
     private var hasFramesAhead = false
 
     private let concealer = PacketLossConcealer()
+    /// Playback is waiting on concealment for `stallSequence`, which has not arrived yet.
     private var stalled = false
+    private var stallSequence: UInt32 = 0
 
     // Resampler FIFO: decoded input samples; `readPosition` is the fractional index of the next output.
     private static let fifoCapacity = 8_192
@@ -57,6 +59,8 @@ nonisolated final class JitterBuffer {
     private(set) var margin = JitterBuffer.minMargin
     private(set) var ratio = 1.0
     private var targetRatio = 1.0
+    /// Integral term of the rate controller: the estimated clock drift between the two devices.
+    private(set) var driftEstimate = 0.0
     private var windowMin = Int.max
     private var windowElapsed = 0
     private var cleanElapsed = 0
@@ -98,6 +102,7 @@ nonisolated final class JitterBuffer {
         margin = Self.minMargin
         ratio = 1
         targetRatio = 1
+        driftEstimate = 0
         windowMin = .max
         windowElapsed = 0
         cleanElapsed = 0
@@ -201,8 +206,8 @@ nonisolated final class JitterBuffer {
             if framesAhead > 0 && level >= margin + count {
                 state = .playing
                 resetResampler()
-                ratio = 1
-                targetRatio = 1
+                ratio = 1 + driftEstimate
+                targetRatio = ratio
             } else {
                 out.update(repeating: 0, count: count)
                 return
@@ -260,6 +265,10 @@ nonisolated final class JitterBuffer {
             }
             slotState[slot] = 0
             concealer.play(dst, count: frameSamples)
+            if stalled && playSequence == stallSequence {
+                // The frame we stalled for did arrive, just late: the margin was too small.
+                raiseMargin()
+            }
             advance()
             statistics.played += 1
             stalled = false
@@ -273,10 +282,11 @@ nonisolated final class JitterBuffer {
             advance()
             stalled = false
         } else {
-            // Nothing newer yet: the stream is late, not lossy. Stall on concealment.
+            // Nothing newer yet: the stream is late, not lossy. Stall on concealment. Whether the
+            // margin was too small is decided when we learn if this frame was late or lost.
             if !stalled {
                 statistics.underruns += 1
-                raiseMargin()
+                stallSequence = playSequence
             }
             stalled = true
         }
@@ -328,15 +338,17 @@ nonisolated final class JitterBuffer {
         }
 
         guard windowElapsed >= Self.controlWindow else { return }
-        let error = windowMin - margin
-        let deadband = AudioFormat.samples(ms: 1)
-        if abs(error) <= deadband {
-            targetRatio = 1
-        } else {
-            // 10 ms of error → the full 1 %.
-            let offset = Double(error) / Double(AudioFormat.samples(ms: 10)) * Self.maxRatioOffset
-            targetRatio = 1 + max(-Self.maxRatioOffset, min(Self.maxRatioOffset, offset))
+        // PI control of the window's minimum level. The integral term tracks clock drift, so the
+        // level settles on the margin instead of a drift-dependent offset from it.
+        let errorMs = AudioFormat.milliseconds(samples: windowMin - margin)
+        if abs(errorMs) < 10 {
+            driftEstimate += errorMs * 0.000_2
+            driftEstimate = max(-Self.maxRatioOffset, min(Self.maxRatioOffset, driftEstimate))
         }
+        // Proportional: 10 ms of error → the full 1 %. A small deadband above the margin keeps the
+        // rate steady when the level is just right; below the margin there is none.
+        let proportional = errorMs > 0 && errorMs < 1 ? 0 : errorMs / 10 * Self.maxRatioOffset
+        targetRatio = 1 + max(-Self.maxRatioOffset, min(Self.maxRatioOffset, proportional + driftEstimate))
         windowMin = .max
         windowElapsed = 0
         raisedThisWindow = false

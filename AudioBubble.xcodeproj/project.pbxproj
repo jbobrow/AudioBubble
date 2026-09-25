@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		2BA0000000000000000000A2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2B55917C2F08C079005FBE9A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2B5591832F08C079005FBE9A;
+			remoteInfo = AudioBubble;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		2BA0000000000000000000A1 /* AudioBubbleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AudioBubbleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B5591842F08C079005FBE9A /* AudioBubble.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioBubble.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -21,6 +32,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		2BA0000000000000000000A3 /* AudioBubbleTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AudioBubbleTests;
+			sourceTree = "<group>";
+		};
 		2B5591862F08C079005FBE9A /* AudioBubble */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -32,6 +48,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2BA0000000000000000000A4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2B5591812F08C079005FBE9A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				2B5591862F08C079005FBE9A /* AudioBubble */,
+				2BA0000000000000000000A3 /* AudioBubbleTests */,
 				2B5591852F08C079005FBE9A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				2B5591842F08C079005FBE9A /* AudioBubble.app */,
+				2BA0000000000000000000A1 /* AudioBubbleTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,6 +86,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2BA0000000000000000000A5 /* AudioBubbleTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2BA0000000000000000000A6 /* Build configuration list for PBXNativeTarget "AudioBubbleTests" */;
+			buildPhases = (
+				2BA0000000000000000000A7 /* Sources */,
+				2BA0000000000000000000A4 /* Frameworks */,
+				2BA0000000000000000000A8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2BA0000000000000000000A9 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				2BA0000000000000000000A3 /* AudioBubbleTests */,
+			);
+			name = AudioBubbleTests;
+			packageProductDependencies = (
+			);
+			productName = AudioBubbleTests;
+			productReference = 2BA0000000000000000000A1 /* AudioBubbleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		2B5591832F08C079005FBE9A /* AudioBubble */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2B55918F2F08C07A005FBE9A /* Build configuration list for PBXNativeTarget "AudioBubble" */;
@@ -96,6 +144,10 @@
 					2B5591832F08C079005FBE9A = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					2BA0000000000000000000A5 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 2B5591832F08C079005FBE9A;
+					};
 				};
 			};
 			buildConfigurationList = 2B55917F2F08C079005FBE9A /* Build configuration list for PBXProject "AudioBubble" */;
@@ -113,11 +165,19 @@
 			projectRoot = "";
 			targets = (
 				2B5591832F08C079005FBE9A /* AudioBubble */,
+				2BA0000000000000000000A5 /* AudioBubbleTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2BA0000000000000000000A8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2B5591822F08C079005FBE9A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -128,6 +188,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2BA0000000000000000000A7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2B5591802F08C079005FBE9A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,7 +204,57 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		2BA0000000000000000000A9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2B5591832F08C079005FBE9A /* AudioBubble */;
+			targetProxy = 2BA0000000000000000000A2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		2BA0000000000000000000AA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 63KWA2RPU8;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jonbobrow.AudioBubbleTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AudioBubble.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AudioBubble";
+			};
+			name = Debug;
+		};
+		2BA0000000000000000000AB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 63KWA2RPU8;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jonbobrow.AudioBubbleTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AudioBubble.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AudioBubble";
+			};
+			name = Release;
+		};
 		2B55918D2F08C07A005FBE9A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -336,6 +453,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2BA0000000000000000000A6 /* Build configuration list for PBXNativeTarget "AudioBubbleTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2BA0000000000000000000AA /* Debug */,
+				2BA0000000000000000000AB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		2B55917F2F08C079005FBE9A /* Build configuration list for PBXProject "AudioBubble" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
