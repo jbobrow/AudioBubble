@@ -105,6 +105,10 @@ nonisolated enum ControlMessage: Codable, Equatable, Sendable {
     case invite(Invite)
     /// The answer to an invite. Sent several times; de-duplicated by `id`.
     case reply(InviteReply)
+    /// "Send me your avatar image", optionally just some chunks of it.
+    case avatarRequest(AvatarRequest)
+    /// One piece of an avatar image.
+    case avatarChunk(AvatarChunk)
 
     struct Hello: Codable, Equatable, Sendable {
         var name: String
@@ -120,6 +124,11 @@ nonisolated enum ControlMessage: Codable, Equatable, Sendable {
         var echoHold: UInt64?
         /// Whether the sender is joined to a Wi-Fi network (which slows its direct links).
         var onWiFi: Bool?
+        /// An emoji shown in the sender's bubble instead of their initial.
+        var emoji: String?
+        /// Version of the sender's avatar image (a Memoji), if they have one. Fetch it with
+        /// `avatarRequest`.
+        var avatarVersion: UInt32?
     }
 
     struct Invite: Codable, Equatable, Sendable {
@@ -131,5 +140,18 @@ nonisolated enum ControlMessage: Codable, Equatable, Sendable {
         var id: UUID
         var bubble: UUID
         var accepted: Bool
+    }
+
+    struct AvatarRequest: Codable, Equatable, Sendable {
+        var version: UInt32
+        /// Chunks wanted; nil for all of them.
+        var chunks: [Int]?
+    }
+
+    struct AvatarChunk: Codable, Equatable, Sendable {
+        var version: UInt32
+        var index: Int
+        var count: Int
+        var data: Data
     }
 }

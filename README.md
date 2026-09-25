@@ -10,7 +10,8 @@ See [PLAN.md](PLAN.md) for the original design and the reasoning behind it.
 
 ## Using it
 
-1. **First launch:** a short introduction, then choose your name and a color.
+1. **First launch:** a short introduction, then choose your name, a color, and optionally a
+   Memoji or emoji for your bubble.
 2. **Put in your headphones.** The app is made for AirPods or other headphones and shows a
    notice when none are connected.
 3. **Nearby people float as bubbles.** Tap someone to invite them. They get a banner,
@@ -20,8 +21,8 @@ See [PLAN.md](PLAN.md) for the original design and the reasoning behind it.
 5. **Leave the Wi-Fi network for the best audio.** Keep Wi-Fi *on*, but don't join a network:
    open Control Center and tap Wi-Fi. If you're in a bubble while joined to a network, the app
    tells you how.
-6. **Tap your name** to change your name or color, replay the introduction, or turn on
-   Debug mode.
+6. **Tap your name** to change your name, color or bubble (tap the bubble to pick a Memoji
+   sticker or any emoji), replay the introduction, or turn on Debug mode.
 
 Audio keeps going with the screen locked.
 
@@ -53,6 +54,11 @@ Audio keeps going with the screen locked.
 - **Membership:** leaderless. Every phone says hello once a second with its name, color and
   bubble id, and a bubble is everyone advertising the same id. Invites and replies are sent
   several times and de-duplicated, so there's no host to lose.
+- **Avatars:** iOS has no API for reading someone's Memoji, so the picker opens the emoji
+  keyboard in a text view that accepts adaptive image glyphs, where Memoji stickers (and
+  Genmoji) arrive as images. The image is shrunk to a 240 px HEIC with transparency (~10 KB).
+  Hellos carry only its version; peers fetch it once in 900-byte chunks and re-request any
+  that go missing. An emoji just rides along in the hello.
 - **Wi-Fi advice:** a joined Wi-Fi network makes the radio time-share with the access point
   (or send traffic through it), which raises latency and hurts quality. The app detects this
   and explains how to leave the network while keeping Wi-Fi on.
@@ -84,7 +90,8 @@ xcodebuild -project AudioBubble.xcodeproj -scheme AudioBubble \
   -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
-The tests cover the ring buffers, wire-protocol round trips, loss concealment, the limiter, and
+The tests cover the ring buffers, wire-protocol round trips, avatar chunking and image
+preparation, loss concealment, the limiter, and
 simulations of the jitter buffer (reordering, loss, jitter, clock drift, an 80 ms AWDL-style
 delay spike) and the self-echo suppressor (several delays and leak levels, double talk, no
 echo, a delay that changes mid-session).
@@ -111,6 +118,7 @@ Debug builds also take launch arguments:
 | `-introPage <0-3>` | Open the introduction on a given page |
 | `-nameStep` | Open the name and color step |
 | `-showSettings` | Open Settings on launch |
+| `-avatarPicker` | With `-showSettings` or `-nameStep`, also open the Memoji picker |
 
 They also log each member's round trip, buffer depth, link and estimated latency once a
 second (subsystem `com.jonbobrow.AudioBubble`, category `model`).

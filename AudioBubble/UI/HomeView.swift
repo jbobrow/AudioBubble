@@ -52,7 +52,11 @@ struct HomeView: View {
             if let identity = model.identity {
                 Button { showsSettings = true } label: {
                     HStack(spacing: 8) {
-                        Circle().fill(Color.bubble(identity.hue)).frame(width: 12, height: 12)
+                        if model.myAvatar == .initial {
+                            Circle().fill(Color.bubble(identity.hue)).frame(width: 12, height: 12)
+                        } else {
+                            BubbleAvatar(name: identity.name, hue: identity.hue, size: 26, content: model.myAvatar)
+                        }
                         Text(identity.name).font(.headline)
                         Image(systemName: "chevron.down")
                             .font(.caption2.weight(.semibold))
@@ -105,7 +109,7 @@ struct NearbyField: View {
                     ForEach(Array(peers.enumerated()), id: \.element.id) { index, peer in
                         let position = layout(index: index, count: peers.count, in: geometry.size)
                         let seed = Double(peer.id % 1_000) / 1_000 * 2 * .pi
-                        PeerBubble(peer: peer, size: compact ? 70 : 104,
+                        PeerBubble(peer: peer, avatar: model.avatar(of: peer), size: compact ? 70 : 104,
                                    invited: model.outgoingInvites[peer.id] != nil)
                             .position(x: position.x + 8 * sin(t * 0.6 + seed),
                                       y: position.y + 10 * cos(t * 0.45 + seed * 1.3))
@@ -136,6 +140,7 @@ struct NearbyField: View {
 
 struct PeerBubble: View {
     let peer: Peer
+    var avatar: AvatarContent = .initial
     let size: CGFloat
     var invited = false
 
@@ -145,9 +150,7 @@ struct PeerBubble: View {
                 Circle()
                     .fill(Color.bubble(peer.hue).gradient)
                     .shadow(color: Color.bubble(peer.hue).opacity(0.5), radius: 14)
-                Text(peer.name.prefix(1).uppercased())
-                    .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.black.opacity(0.6))
+                AvatarFace(name: peer.name, content: avatar, size: size)
                 if invited {
                     Circle()
                         .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 5]))

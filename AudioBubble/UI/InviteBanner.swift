@@ -8,14 +8,8 @@ struct InviteBanner: View {
     var body: some View {
         let peer = model.peer(invite.from)
         HStack(spacing: 14) {
-            Circle()
-                .fill(Color.bubble(peer?.hue ?? 0.6).gradient)
-                .frame(width: 44, height: 44)
-                .overlay {
-                    Text((peer?.name.prefix(1) ?? "?").uppercased())
-                        .font(.headline)
-                        .foregroundStyle(.black.opacity(0.6))
-                }
+            BubbleAvatar(name: peer?.name ?? "?", hue: peer?.hue ?? 0.6, size: 44,
+                         content: peer.map(model.avatar(of:)) ?? .initial)
             Text("\(peer?.name ?? "Someone") wants to bubble with you")
                 .font(.subheadline.weight(.medium))
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -33,6 +33,7 @@ struct BubbleView: View {
         let id: UInt64
         let name: String
         let initial: String
+        var avatar: AvatarContent = .initial
         let hue: Double
         let level: Float
         let latency: Double?
@@ -46,11 +47,11 @@ struct BubbleView: View {
     private var participants: [Participant] {
         var list: [Participant] = []
         if let identity = model.identity {
-            list.append(Participant(id: model.localID, name: "You", initial: String(identity.name.prefix(1)), hue: identity.hue,
+            list.append(Participant(id: model.localID, name: "You", initial: String(identity.name.prefix(1)), avatar: model.myAvatar, hue: identity.hue,
                                     level: model.myLevel, latency: nil, isMe: true))
         }
         for member in model.members {
-            list.append(Participant(id: member.id, name: member.name, initial: String(member.name.prefix(1)), hue: member.hue,
+            list.append(Participant(id: member.id, name: member.name, initial: String(member.name.prefix(1)), avatar: model.avatar(of: member), hue: member.hue,
                                     level: model.level(of: member.id),
                                     latency: debugMode ? model.latencyMilliseconds(from: member.id) : nil, isMe: false,
                                     link: member.isDirect.map { $0 ? "direct" : "via network" },
@@ -124,9 +125,7 @@ struct MemberGlow: View {
                 Circle()
                     .fill(color.gradient)
                     .shadow(color: color.opacity(0.4 + level * 0.6), radius: 6 + level * 22)
-                Text(participant.initial.uppercased())
-                    .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.black.opacity(0.6))
+                AvatarFace(name: participant.initial, content: participant.avatar, size: size)
             }
             .frame(width: size, height: size)
             Text(participant.name)

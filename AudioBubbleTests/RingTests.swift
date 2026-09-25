@@ -91,12 +91,18 @@ struct WireProtocolTests {
             .hello(.init(name: "Sam", hue: 0, bubble: nil, time: 1, echoTime: nil, echoHold: nil)),
             .invite(.init(id: UUID(), bubble: UUID())),
             .reply(.init(id: UUID(), bubble: UUID(), accepted: true)),
+            .hello(.init(name: "Jo", hue: 0.9, bubble: nil, time: 5, echoTime: nil, echoHold: nil,
+                         onWiFi: true, emoji: "🦊", avatarVersion: 0xABCD_EF01)),
+            .avatarRequest(.init(version: 7, chunks: [0, 3])),
+            .avatarChunk(.init(version: 7, index: 2, count: 12, data: Data((0..<AvatarTransfer.chunkSize).map { UInt8($0 % 251) }))),
         ]
         for message in messages {
             let data = try #require(WireProtocol.encodeControl(message, sender: 42))
             let header = data.withUnsafeBytes { WireProtocol.parseHeader($0) }
             #expect(header == .init(kind: .control, silent: false, sender: 42))
             #expect(WireProtocol.decodeControl(data) == message)
+            // Every control datagram, including a full avatar chunk, fits one Wi-Fi frame.
+            #expect(data.count < 1_400, "\(data.count) bytes")
         }
     }
 

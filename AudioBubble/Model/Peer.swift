@@ -14,6 +14,10 @@ struct Peer: Identifiable, Equatable {
     var rttMilliseconds: Double?
     /// Whether they're joined to a Wi-Fi network.
     var onWiFi = false
+    /// Emoji shown in their bubble, if they chose one.
+    var emoji: String?
+    /// Version of their avatar image (Memoji), if they have one.
+    var avatarVersion: UInt32?
     /// The interface our link to them uses, e.g. "awdl0" (direct) or "en0" (through a network).
     var linkInterface: String?
 

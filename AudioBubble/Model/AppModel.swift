@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 import os
 
 /// App state: identity, the people nearby, the bubble you're in, and invites.
@@ -30,6 +31,10 @@ final class AppModel {
     private(set) var isOnWiFiNetwork = false
     /// The user dismissed the "disconnect from Wi-Fi" advice for this session.
     var wifiAdviceDismissed = false
+    /// Peers' avatar images (Memoji), by version.
+    private(set) var avatarImages: [UInt32: UIImage] = [:]
+    /// Your own avatar image, decoded once.
+    private(set) var myAvatarImage: UIImage?
     /// Whether headphones (AirPods, wired, …) are connected. The app is meant to be used with them.
     /// Checked once onboarding is done (see `start`), so first launch never touches the audio session early.
     private(set) var headphonesConnected = true
@@ -47,6 +52,11 @@ final class AppModel {
     @ObservationIgnored private var seenMessageIDs: Set<UUID> = []
     @ObservationIgnored private var lastHadCompany = Date()
     @ObservationIgnored private var audioActive = false
+    @ObservationIgnored private var myAvatarVersion: UInt32?
+    @ObservationIgnored private var myAvatarChunks: [Data] = []
+    @ObservationIgnored private var avatarAssemblies: [UInt32: AvatarFetch] = [:]
+    @ObservationIgnored private var avatarFailures: [UInt32: Date] = [:]
+    @ObservationIgnored private var avatarLastServed: [UInt64: Date] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.jonbobrow.AudioBubble", category: "model")
 
     static let helloInterval: Duration = .seconds(1)
@@ -57,6 +67,7 @@ final class AppModel {
     init() {
         identity = Identity.load()
         engine = VoiceEngine(streams: streams)
+        defer { identityDidChange() }
         session = AudioSessionController(engine: engine)
         transport = MeshTransport(localID: localID, streams: streams)
         sender = AudioSender(engine: engine, transport: transport)
@@ -128,25 +139,129 @@ final class AppModel {
 
     static let maxNameLength = 24
 
-    func completeOnboarding(name: String, hue: Double) {
+    func completeOnboarding(name: String, hue: Double, avatar: AvatarChoice = .initial) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let identity = Identity(name: String(trimmed.prefix(Self.maxNameLength)), hue: hue)
+        let identity = Identity(name: String(trimmed.prefix(Self.maxNameLength)), hue: hue, avatar: avatar)
         identity.save()
         self.identity = identity
+        identityDidChange()
         start()
     }
 
-    /// Changes your name and color; everyone nearby sees it with your next hello (sent now).
-    func updateIdentity(name: String, hue: Double) {
+    /// Changes your name, color and avatar; everyone nearby sees it with your next hello (sent now).
+    func updateIdentity(name: String, hue: Double, avatar: AvatarChoice) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, var identity else { return }
         identity.name = String(trimmed.prefix(Self.maxNameLength))
         identity.hue = hue
+        identity.avatar = avatar
         guard identity != self.identity else { return }
         identity.save()
         self.identity = identity
+        identityDidChange()
         sendHellos()
+    }
+
+    private func identityDidChange() {
+        // Anything too big to send in a few chunks (e.g. saved by an older build) is shrunk once.
+        if case let .image(data) = identity?.avatar, data.count > AvatarImage.maxBytes {
+            if let image = UIImage(data: data), let smaller = AvatarImage.prepare(image) {
+                identity?.avatar = .image(smaller)
+            } else {
+                identity?.avatar = .initial
+            }
+            identity?.save()
+        }
+        if case let .image(data) = identity?.avatar {
+            myAvatarImage = UIImage(data: data)
+            myAvatarVersion = AvatarTransfer.version(of: data)
+            myAvatarChunks = AvatarTransfer.chunks(of: data)
+        } else {
+            myAvatarImage = nil
+            myAvatarVersion = nil
+            myAvatarChunks = []
+        }
+    }
+
+    // MARK: Avatars
+
+    /// What your bubble shows.
+    var myAvatar: AvatarContent {
+        switch identity?.avatar {
+        case let .emoji(emoji)?: .emoji(emoji)
+        case .image?: myAvatarImage.map(AvatarContent.image) ?? .initial
+        default: .initial
+        }
+    }
+
+    /// What a peer's bubble shows (their initial until their Memoji has arrived).
+    func avatar(of peer: Peer) -> AvatarContent {
+        if let version = peer.avatarVersion { return avatarImages[version].map(AvatarContent.image) ?? .initial }
+        if let emoji = peer.emoji { return .emoji(emoji) }
+        return .initial
+    }
+
+    private struct AvatarFetch {
+        var assembly: AvatarTransfer.Assembly?
+        let peer: UInt64
+        var requested: Date
+        var attempts: Int
+    }
+
+    private func fetchAvatarIfNeeded(_ version: UInt32, from peer: UInt64) {
+        guard avatarImages[version] == nil, avatarAssemblies[version] == nil else { return }
+        if let failed = avatarFailures[version], Date().timeIntervalSince(failed) < 30 { return }
+        avatarAssemblies[version] = AvatarFetch(peer: peer, requested: Date(), attempts: 1)
+        transport.send(.avatarRequest(.init(version: version, chunks: nil)), to: peer)
+    }
+
+    /// Re-asks for missing chunks; gives up (for 30 s) after a few tries.
+    private func retryAvatarFetches() {
+        let now = Date()
+        for (version, var fetch) in avatarAssemblies where now.timeIntervalSince(fetch.requested) > 1.5 {
+            guard fetch.attempts < 6 else {
+                avatarAssemblies[version] = nil
+                avatarFailures[version] = now
+                continue
+            }
+            fetch.attempts += 1
+            fetch.requested = now
+            avatarAssemblies[version] = fetch
+            transport.send(.avatarRequest(.init(version: version, chunks: fetch.assembly?.missing)), to: fetch.peer)
+        }
+    }
+
+    private func serveAvatar(_ request: ControlMessage.AvatarRequest, to peer: UInt64) {
+        guard request.version == myAvatarVersion, !myAvatarChunks.isEmpty else { return }
+        // A full resend at most twice a second per peer; targeted resends always.
+        if request.chunks == nil {
+            if let last = avatarLastServed[peer], Date().timeIntervalSince(last) < 0.5 { return }
+            avatarLastServed[peer] = Date()
+        }
+        let count = myAvatarChunks.count
+        for index in request.chunks ?? Array(0..<count) where myAvatarChunks.indices.contains(index) {
+            transport.send(.avatarChunk(.init(version: request.version, index: index, count: count,
+                                              data: myAvatarChunks[index])), to: peer)
+        }
+    }
+
+    private func receiveAvatarChunk(_ chunk: ControlMessage.AvatarChunk, from peer: UInt64) {
+        guard avatarImages[chunk.version] == nil else { return }
+        var fetch = avatarAssemblies[chunk.version] ?? AvatarFetch(peer: peer, requested: Date(), attempts: 1)
+        if fetch.assembly == nil { fetch.assembly = AvatarTransfer.Assembly(version: chunk.version, count: chunk.count) }
+        guard fetch.assembly?.count == chunk.count else { return }
+        fetch.assembly?.insert(index: chunk.index, data: chunk.data)
+        if let data = fetch.assembly?.data {
+            avatarAssemblies[chunk.version] = nil
+            if let image = UIImage(data: data) {
+                avatarImages[chunk.version] = image
+            } else {
+                avatarFailures[chunk.version] = Date()
+            }
+        } else {
+            avatarAssemblies[chunk.version] = fetch
+        }
     }
 
     /// Invites someone into your bubble (or a new one, if you aren't in one yet).
@@ -210,6 +325,7 @@ final class AppModel {
             incomingInvite = nil
         }
         if audioActive { micModeName = AudioSessionController.micModeName }
+        retryAvatarFetches()
         reconcile()
         #if DEBUG
         debugAutomation()
@@ -279,7 +395,9 @@ final class AppModel {
                 name: identity.name, hue: identity.hue, bubble: bubbleID, time: now,
                 echoTime: known?.lastHelloTime,
                 echoHold: known.map { now &- $0.lastSeen },
-                onWiFi: isOnWiFiNetwork)
+                onWiFi: isOnWiFiNetwork,
+                emoji: { if case let .emoji(emoji) = identity.avatar { emoji } else { nil } }(),
+                avatarVersion: myAvatarVersion)
             transport.send(.hello(hello), to: id)
         }
     }
@@ -315,6 +433,10 @@ final class AppModel {
             } else {
                 reconcile()
             }
+        case let .avatarRequest(request):
+            serveAvatar(request, to: sender)
+        case let .avatarChunk(chunk):
+            receiveAvatarChunk(chunk, from: sender)
         }
     }
 
@@ -330,6 +452,9 @@ final class AppModel {
         peer.lastSeen = now
         peer.lastHelloTime = hello.time
         peer.onWiFi = hello.onWiFi ?? false
+        peer.emoji = hello.emoji
+        peer.avatarVersion = hello.avatarVersion
+        if let version = hello.avatarVersion { fetchAvatarIfNeeded(version, from: sender) }
 
         if let echo = hello.echoTime, let hold = hello.echoHold, now > echo &+ hold {
             let rtt = Double(now - echo - hold) / 1000

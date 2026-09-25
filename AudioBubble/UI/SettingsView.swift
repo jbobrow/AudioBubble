@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(DebugSettings.key) private var debugMode = false
     @State private var name = ""
     @State private var hue = 0.58
+    @State private var avatar = AvatarChoice.initial
     @State private var showsIntro = false
 
     var body: some View {
@@ -15,8 +16,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Spacer()
-                        BubbleAvatar(name: name.isEmpty ? "?" : name, hue: hue, size: 96)
-                            .animation(.snappy, value: hue)
+                        EditableAvatar(name: name, hue: hue, avatar: $avatar)
                         Spacer()
                     }
                     .listRowBackground(Color.clear)
@@ -28,7 +28,7 @@ struct SettingsView: View {
                 } header: {
                     Text("You")
                 } footer: {
-                    Text("People nearby see your name and color.")
+                    Text("Tap your bubble to use a Memoji or emoji. People nearby see your name, color and bubble.")
                 }
 
                 Section {
@@ -55,6 +55,7 @@ struct SettingsView: View {
         .onAppear {
             name = model.identity?.name ?? ""
             hue = model.identity?.hue ?? hue
+            avatar = model.identity?.avatar ?? .initial
         }
         .onDisappear(perform: save)
         .fullScreenCover(isPresented: $showsIntro) {
@@ -66,6 +67,6 @@ struct SettingsView: View {
     }
 
     private func save() {
-        model.updateIdentity(name: name, hue: hue)
+        model.updateIdentity(name: name, hue: hue, avatar: avatar)
     }
 }

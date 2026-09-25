@@ -6,6 +6,8 @@ struct Identity: Equatable {
     var name: String
     /// Color hue, 0...1.
     var hue: Double
+    /// Your initial, an emoji, or a Memoji.
+    var avatar: AvatarChoice = .initial
 
     private static let nameKey = "identity.name"
     private static let hueKey = "identity.hue"
@@ -14,12 +16,13 @@ struct Identity: Equatable {
         let defaults = UserDefaults.standard
         guard let name = defaults.string(forKey: nameKey), !name.isEmpty else { return nil }
         let hue = defaults.object(forKey: hueKey) as? Double ?? .random(in: 0..<1)
-        return Identity(name: name, hue: hue)
+        return Identity(name: name, hue: hue, avatar: AvatarStore.load())
     }
 
     func save() {
         UserDefaults.standard.set(name, forKey: Self.nameKey)
         UserDefaults.standard.set(hue, forKey: Self.hueKey)
+        AvatarStore.save(avatar)
     }
 
     static func newPeerID() -> UInt64 {

@@ -19,13 +19,13 @@ private struct NameStep: View {
     @Environment(AppModel.self) private var model
     @State private var name = ""
     @State private var hue = Palette.random()
+    @State private var avatar = AvatarChoice.initial
     @FocusState private var focused: Bool
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            BubbleAvatar(name: name.isEmpty ? "?" : name, hue: hue, size: 110)
-                .animation(.snappy, value: hue)
+            EditableAvatar(name: name, hue: hue, avatar: $avatar, size: 110)
             Text("What should people call you?")
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
@@ -59,6 +59,6 @@ private struct NameStep: View {
     }
 
     private func finish() {
-        model.completeOnboarding(name: name, hue: hue)
+        model.completeOnboarding(name: name, hue: hue, avatar: avatar)
     }
 }

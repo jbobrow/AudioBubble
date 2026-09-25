@@ -1,21 +1,47 @@
 import SwiftUI
 
-/// A person's colored bubble with their initial.
+/// A person's colored bubble with their initial, emoji or Memoji.
 struct BubbleAvatar: View {
     let name: String
     let hue: Double
     var size: CGFloat = 88
+    var content: AvatarContent = .initial
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(Color.bubble(hue).gradient)
                 .shadow(color: Color.bubble(hue).opacity(0.5), radius: size * 0.14)
+            AvatarFace(name: name, content: content, size: size)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// What goes on top of the colored circle: an initial, an emoji, or a Memoji clipped to the circle.
+struct AvatarFace: View {
+    let name: String
+    let content: AvatarContent
+    let size: CGFloat
+
+    var body: some View {
+        switch content {
+        case .initial:
             Text(name.prefix(1).uppercased())
                 .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
                 .foregroundStyle(.black.opacity(0.6))
+        case let .emoji(emoji):
+            Text(emoji)
+                .font(.system(size: size * 0.56))
+        case let .image(image):
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size * 0.92, height: size * 0.92)
+                .offset(y: size * 0.04)
+                .frame(width: size, height: size)
+                .clipShape(Circle())
         }
-        .frame(width: size, height: size)
     }
 }
 
@@ -100,5 +126,45 @@ enum DebugLaunch {
         #else
         nil
         #endif
+    }
+}
+
+/// Your bubble, large, with a badge: tap to choose a Memoji or emoji.
+struct EditableAvatar: View {
+    let name: String
+    let hue: Double
+    @Binding var avatar: AvatarChoice
+    var size: CGFloat = 96
+    @State private var picking = DebugLaunch.has("-avatarPicker")
+
+    var body: some View {
+        Button { picking = true } label: {
+            BubbleAvatar(name: name.isEmpty ? "?" : name, hue: hue, size: size, content: content)
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: avatar == .initial ? "face.smiling" : "pencil")
+                        .font(.system(size: size * 0.16, weight: .semibold))
+                        .foregroundStyle(.black.opacity(0.75))
+                        .padding(size * 0.08)
+                        .background(.white, in: Circle())
+                        .offset(x: size * 0.02, y: size * 0.02)
+                }
+                .animation(.snappy, value: hue)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Your bubble")
+        .accessibilityHint("Choose a Memoji or emoji")
+        .sheet(isPresented: $picking) {
+            AvatarPicker(name: name, hue: hue) { avatar = $0 }
+                .presentationDetents([.height(340)])
+                .presentationBackground(.clear)
+        }
+    }
+
+    private var content: AvatarContent {
+        switch avatar {
+        case .initial: .initial
+        case let .emoji(emoji): .emoji(emoji)
+        case let .image(data): UIImage(data: data).map(AvatarContent.image) ?? .initial
+        }
     }
 }
