@@ -44,8 +44,13 @@ xcodebuild -project AudioBubble.xcodeproj -scheme AudioBubble \
    going with the screen locked.
 3. Use headphones, or expect Apple's echo cancellation to work hard on speakerphone.
 
+Turn on **Settings → Debug mode** (tap your name) to see each member's latency, link
+(direct or via a network) and whether your voice is being removed from their stream; tap the
+latency readout for the breakdown. It's off by default.
+
 Debug builds accept launch arguments for hands-free testing: `-autoInvite` invites the first
-person found, `-autoAccept` accepts any invite. They also log each member's RTT, jitter-buffer
+person found, `-autoAccept` accepts any invite. For looking at screens on a simulator:
+`-introPage <0-3>`, `-nameStep`, `-showSettings`. They also log each member's RTT, jitter-buffer
 depth and estimated latency (subsystem `com.jonbobrow.AudioBubble`, category `model`).
 
 Two simulators on the same Mac also find each other and can bubble, which is handy for UI and

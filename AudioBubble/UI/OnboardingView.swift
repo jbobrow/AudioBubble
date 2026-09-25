@@ -1,38 +1,49 @@
 import SwiftUI
 
+/// First launch: the introduction, then your name and color.
 struct OnboardingView: View {
+    @State private var showsIntro = !DebugLaunch.has("-nameStep")
+
+    var body: some View {
+        if showsIntro {
+            IntroPages { withAnimation { showsIntro = false } }
+                .transition(.opacity)
+        } else {
+            NameStep()
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+        }
+    }
+}
+
+private struct NameStep: View {
     @Environment(AppModel.self) private var model
     @State private var name = ""
+    @State private var hue = Palette.random()
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(spacing: 28) {
+        VStack(spacing: 24) {
             Spacer()
-            ZStack {
-                Circle().fill(Color.bubble(0.58).gradient).frame(width: 120, height: 120).offset(x: -30)
-                    .opacity(0.8)
-                Circle().fill(Color.bubble(0.93).gradient).frame(width: 90, height: 90).offset(x: 40, y: 20)
-                    .opacity(0.8)
-            }
-            .blendMode(.screen)
-            Text("Audio Bubble")
-                .font(.largeTitle.weight(.semibold))
-            Text("Talk with the people around you,\nclearly and instantly.")
+            BubbleAvatar(name: name.isEmpty ? "?" : name, hue: hue, size: 110)
+                .animation(.snappy, value: hue)
+            Text("What should people call you?")
+                .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(.secondary)
             TextField("Your name", text: $name)
                 .textContentType(.givenName)
-                .submitLabel(.continue)
+                .submitLabel(.done)
                 .focused($focused)
                 .multilineTextAlignment(.center)
                 .font(.title3)
                 .padding()
                 .background(.white.opacity(0.08), in: .capsule)
                 .padding(.horizontal, 40)
-                .onSubmit(finish)
+                .onSubmit { focused = false }
+            ColorSwatches(hue: $hue)
+                .padding(.horizontal, 48)
+            Spacer()
             Button(action: finish) {
-                Text("Continue")
+                Text("Start")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
@@ -40,15 +51,14 @@ struct OnboardingView: View {
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.capsule)
             .padding(.horizontal, 40)
+            .padding(.bottom, 24)
             .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            Spacer()
-            Spacer()
         }
         .foregroundStyle(.white)
         .onAppear { focused = true }
     }
 
     private func finish() {
-        model.completeOnboarding(name: name)
+        model.completeOnboarding(name: name, hue: hue)
     }
 }

@@ -9,6 +9,8 @@ final class AudioSessionController {
     private let log = Logger(subsystem: "com.jonbobrow.AudioBubble", category: "audio")
     private var observers: [NSObjectProtocol] = []
     private var wantsAudio = false
+    /// Called on the main actor when headphones are connected or disconnected.
+    var onRouteChange: (() -> Void)?
 
     init(engine: VoiceEngine) {
         self.engine = engine
@@ -17,6 +19,9 @@ final class AudioSessionController {
         observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: .main) { [weak self] note in
             let typeValue = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
             MainActor.assumeIsolated { self?.handleInterruption(typeValue.flatMap(AVAudioSession.InterruptionType.init)) }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: session, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onRouteChange?() }
         })
         observers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: session, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.handleMediaServicesReset() }
@@ -66,6 +71,14 @@ final class AudioSessionController {
     private func handleMediaServicesReset() {
         engine.teardown()
         if wantsAudio { start() }
+    }
+
+    /// Whether audio is going to headphones (wired, USB or Bluetooth, such as AirPods). The app is
+    /// meant to be used with them: from the speaker, everyone nearby hears the bubble too, and
+    /// echo cancellation has to work much harder.
+    static var headphonesConnected: Bool {
+        let headphoneTypes: Set<AVAudioSession.Port> = [.headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio]
+        return AVAudioSession.sharedInstance().currentRoute.outputs.contains { headphoneTypes.contains($0.portType) }
     }
 
     /// Asks for the microphone up front, so joining a bubble never waits on a prompt.

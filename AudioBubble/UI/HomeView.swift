@@ -2,10 +2,18 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(AppModel.self) private var model
+    @State private var showsSettings = DebugLaunch.has("-showSettings")
+    @State private var showsHeadphonesAlert = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            if !model.headphonesConnected {
+                HeadphonesNotice()
+                    .padding(.horizontal)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             if model.bubbleID != nil {
                 BubbleView()
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
@@ -27,26 +35,59 @@ struct HomeView: View {
         .foregroundStyle(.white)
         .animation(.spring(duration: 0.6), value: model.bubbleID)
         .animation(.spring(duration: 0.6), value: model.nearby.map(\.id))
+        .animation(.spring(duration: 0.5), value: model.headphonesConnected)
+        .sheet(isPresented: $showsSettings) {
+            SettingsView()
+                .presentationDetents([.large])
+        }
+        .alert("Connect your headphones", isPresented: $showsHeadphonesAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Mic modes like Voice Isolation are for your headphones' mic. Connect AirPods or other headphones, then try again.")
+        }
     }
 
     private var header: some View {
         HStack {
             if let identity = model.identity {
-                Circle().fill(Color.bubble(identity.hue)).frame(width: 12, height: 12)
-                Text(identity.name).font(.headline)
+                Button { showsSettings = true } label: {
+                    HStack(spacing: 8) {
+                        Circle().fill(Color.bubble(identity.hue)).frame(width: 12, height: 12)
+                        Text(identity.name).font(.headline)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(identity.name), settings")
+                .accessibilityHint("Change your name and color")
             }
             Spacer()
-            Button(action: model.showMicModes) {
-                Label(model.micModeName, systemImage: "waveform.and.mic")
-                    .labelStyle(.titleAndIcon)
-                    .font(.footnote)
+            // Mic modes exist only while the mic is in use, i.e. in a bubble.
+            if model.bubbleID != nil {
+                Button(action: showMicModes) {
+                    Label(model.micModeName, systemImage: "waveform.and.mic")
+                        .labelStyle(.titleAndIcon)
+                        .font(.footnote)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .accessibilityHint("Opens Mic Modes. Choose Voice Isolation to block background noise.")
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .accessibilityHint("Opens Mic Modes. Choose Voice Isolation to block background noise.")
         }
         .padding(.horizontal)
         .padding(.top, 8)
+        .frame(minHeight: 44)
+    }
+
+    private func showMicModes() {
+        if model.headphonesConnected {
+            model.showMicModes()
+        } else {
+            showsHeadphonesAlert = true
+        }
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftUI
 /// The bubble you're in: everyone gathered in one large circle, glowing with their voice.
 struct BubbleView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(DebugSettings.key) private var debugMode = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -51,7 +52,7 @@ struct BubbleView: View {
         for member in model.members {
             list.append(Participant(id: member.id, name: member.name, initial: String(member.name.prefix(1)), hue: member.hue,
                                     level: model.level(of: member.id),
-                                    latency: model.latencyMilliseconds(from: member.id), isMe: false,
+                                    latency: debugMode ? model.latencyMilliseconds(from: member.id) : nil, isMe: false,
                                     link: member.isDirect.map { $0 ? "direct" : "via network" },
                                     onWiFi: member.onWiFi,
                                     echoSuppressed: model.isSuppressingEcho(from: member.id)))
@@ -83,7 +84,7 @@ struct BubbleView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                LatencyReadout()
+                if debugMode { LatencyReadout() }
             }
             HStack(spacing: 16) {
                 Button(action: model.toggleMute) {

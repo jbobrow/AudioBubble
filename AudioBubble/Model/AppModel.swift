@@ -23,11 +23,16 @@ final class AppModel {
     private(set) var discovered: Set<UInt64> = []
     /// When we started looking, for the empty state.
     let searchStarted = Date()
-    private(set) var micModeName = AudioSessionController.micModeName
+    /// The active mic mode, read only while in a bubble: touching capture APIs earlier would
+    /// prompt for the microphone before the user has even finished the introduction.
+    private(set) var micModeName = "Standard"
     /// Whether this phone is joined to a Wi-Fi network (slower, less reliable bubbles).
     private(set) var isOnWiFiNetwork = false
     /// The user dismissed the "disconnect from Wi-Fi" advice for this session.
     var wifiAdviceDismissed = false
+    /// Whether headphones (AirPods, wired, …) are connected. The app is meant to be used with them.
+    /// Checked once onboarding is done (see `start`), so first launch never touches the audio session early.
+    private(set) var headphonesConnected = true
 
     // MARK: Engine
 
@@ -58,6 +63,9 @@ final class AppModel {
         transport.onControl = { [weak self] sender, message in self?.handle(message, from: sender) }
         transport.onDiscoveryChanged = { [weak self] peers in self?.discovered = peers }
         transport.onLinkChanged = { [weak self] peer, interface in self?.peers[peer]?.linkInterface = interface }
+        session.onRouteChange = { [weak self] in
+            self?.headphonesConnected = AudioSessionController.headphonesConnected
+        }
         wifiMonitor.onChange = { [weak self] joined in
             guard let self, joined != isOnWiFiNetwork else { return }
             isOnWiFiNetwork = joined
@@ -118,19 +126,24 @@ final class AppModel {
 
     // MARK: Actions
 
-    func completeOnboarding(name: String) {
+    static let maxNameLength = 24
+
+    func completeOnboarding(name: String, hue: Double) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let identity = Identity(name: String(trimmed.prefix(24)), hue: .random(in: 0..<1))
+        let identity = Identity(name: String(trimmed.prefix(Self.maxNameLength)), hue: hue)
         identity.save()
         self.identity = identity
         start()
     }
 
-    func rename(_ name: String) {
+    /// Changes your name and color; everyone nearby sees it with your next hello (sent now).
+    func updateIdentity(name: String, hue: Double) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, var identity else { return }
-        identity.name = String(trimmed.prefix(24))
+        identity.name = String(trimmed.prefix(Self.maxNameLength))
+        identity.hue = hue
+        guard identity != self.identity else { return }
         identity.save()
         self.identity = identity
         sendHellos()
@@ -177,6 +190,7 @@ final class AppModel {
 
     private func start() {
         AudioSessionController.requestMicrophonePermission()
+        headphonesConnected = AudioSessionController.headphonesConnected
         wifiMonitor.start()
         transport.start()
         heartbeat?.cancel()
@@ -195,7 +209,7 @@ final class AppModel {
         if let invite = incomingInvite, date.timeIntervalSince(invite.received) > Self.inviteLifetime {
             incomingInvite = nil
         }
-        micModeName = AudioSessionController.micModeName
+        if audioActive { micModeName = AudioSessionController.micModeName }
         reconcile()
         #if DEBUG
         debugAutomation()
