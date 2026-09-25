@@ -4,8 +4,11 @@
 <dict>
 	<key>NSBonjourServices</key>
 	<array>
-		<string>_audio-bubble._tcp</string>
 		<string>_audio-bubble._udp</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
 	</array>
 </dict>
 </plist>

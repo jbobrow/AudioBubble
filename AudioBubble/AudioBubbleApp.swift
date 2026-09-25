@@ -4,7 +4,7 @@ import SwiftUI
 struct AudioBubbleApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
     }
 }
