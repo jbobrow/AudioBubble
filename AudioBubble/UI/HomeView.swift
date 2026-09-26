@@ -89,46 +89,79 @@ struct HomeView: View {
     }
 }
 
-/// Nearby people, floating as soft colored bubbles.
+/// Nearby people, floating as soft colored bubbles. On the main page they're a little physics
+/// toy (`BubblePhysics`): they cluster and drift, and you can drag or flick one and it shoves the
+/// others aside. Tap one to invite them.
 struct NearbyField: View {
     @Environment(AppModel.self) private var model
     let peers: [Peer]
     let compact: Bool
+    @State private var physics = BubblePhysics()
+    @State private var dragged: UInt64?
 
     var body: some View {
         GeometryReader { geometry in
-            TimelineView(.animation) { timeline in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                ZStack {
-                    ForEach(Array(peers.enumerated()), id: \.element.id) { index, peer in
-                        let position = layout(index: index, count: peers.count, in: geometry.size)
-                        let seed = Double(peer.id % 1_000) / 1_000 * 2 * .pi
-                        PeerBubble(peer: peer, avatar: model.avatar(of: peer), size: compact ? 70 : 104,
-                                   invited: model.outgoingInvites[peer.id] != nil)
-                            .position(x: position.x + 8 * sin(t * 0.6 + seed),
-                                      y: position.y + 10 * cos(t * 0.45 + seed * 1.3))
-                            .onTapGesture { model.invite(peer.id) }
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
+            if compact {
+                row(in: geometry.size)
+            } else {
+                field(in: geometry.size)
             }
         }
     }
 
-    /// A loose spiral that keeps bubbles apart and stable as people come and go.
-    private func layout(index: Int, count: Int, in size: CGSize) -> CGPoint {
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        if compact {
-            let spacing = min(96, size.width / CGFloat(max(count, 1)))
-            let x = center.x + (CGFloat(index) - CGFloat(count - 1) / 2) * spacing
-            return CGPoint(x: x, y: center.y)
+    private static let fieldSize: CGFloat = 104
+
+    private func field(in size: CGSize) -> some View {
+        TimelineView(.animation) { timeline in
+            let _ = physics.update(size: size, items: peers.map { (id: $0.id, radius: Double(Self.fieldSize) / 2) },
+                                   date: timeline.date)
+            ZStack {
+                ForEach(peers) { peer in
+                    if let body = physics.bodies[peer.id] {
+                        let speed = (body.velocity.x * body.velocity.x + body.velocity.y * body.velocity.y).squareRoot()
+                        PeerBubble(peer: peer, avatar: model.avatar(of: peer), size: Self.fieldSize,
+                                   invited: model.outgoingInvites[peer.id] != nil,
+                                   stretch: CGFloat(min(speed / 2_200, 0.14)),
+                                   stretchAngle: .radians(atan2(body.velocity.y, body.velocity.x)),
+                                   lifted: dragged == peer.id)
+                            .position(x: body.position.x, y: body.position.y)
+                            .onTapGesture { model.invite(peer.id) }
+                            .gesture(
+                                DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.space))
+                                    .onChanged { value in
+                                        dragged = peer.id
+                                        physics.drag(peer.id, to: .init(value.location.x, value.location.y))
+                                    }
+                                    .onEnded { value in
+                                        dragged = nil
+                                        physics.endDrag(peer.id, velocity: .init(value.velocity.width, value.velocity.height))
+                                    }
+                            )
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+            }
+            .frame(width: size.width, height: size.height)
         }
-        guard count > 1 else { return center }
-        let angle = Double(index) * 2.4   // golden angle, roughly
-        let radius = 70 + 34 * sqrt(Double(index))
-        let scale = min(size.width, size.height) / 360
-        return CGPoint(x: center.x + CGFloat(cos(angle) * radius) * scale,
-                       y: center.y + CGFloat(sin(angle) * radius) * scale)
+        .coordinateSpace(.named(Self.space))
+        .animation(.spring(duration: 0.3), value: dragged)
+    }
+
+    private static let space = "nearby-field"
+
+    /// Inside a bubble: a simple row of smaller bubbles.
+    private func row(in size: CGSize) -> some View {
+        let spacing = min(96, size.width / CGFloat(max(peers.count, 1)))
+        return ZStack {
+            ForEach(Array(peers.enumerated()), id: \.element.id) { index, peer in
+                PeerBubble(peer: peer, avatar: model.avatar(of: peer), size: 70,
+                           invited: model.outgoingInvites[peer.id] != nil)
+                    .position(x: size.width / 2 + (CGFloat(index) - CGFloat(peers.count - 1) / 2) * spacing,
+                              y: size.height / 2 - 10)
+                    .onTapGesture { model.invite(peer.id) }
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
     }
 }
 
@@ -137,34 +170,47 @@ struct PeerBubble: View {
     var avatar: AvatarContent = .initial
     let size: CGFloat
     var invited = false
+    /// Squash-and-stretch: 0 is round; the bubble lengthens along `stretchAngle` as it moves.
+    var stretch: CGFloat = 0
+    var stretchAngle: Angle = .zero
+    /// Held by a finger: a touch bigger, with a stronger glow.
+    var lifted = false
 
     /// How far the dashed "invited" ring sits outside the bubble.
     private static let ringInset: CGFloat = 7
 
     var body: some View {
-        // Leave room for the ring even when it isn't shown, so the name doesn't jump on invite.
-        VStack(spacing: Self.ringInset + 7) {
-            ZStack {
+        // The view's frame is the circle, so its position is the bubble's center; the name hangs
+        // below (leaving room for the ring even when it isn't shown, so it never jumps).
+        ZStack {
+            Circle()
+                .fill(Color.bubble(peer.hue).gradient)
+                .shadow(color: Color.bubble(peer.hue).opacity(lifted ? 0.8 : 0.5), radius: lifted ? 24 : 14)
+            AvatarFace(name: peer.name, content: avatar, size: size)
+            if invited {
                 Circle()
-                    .fill(Color.bubble(peer.hue).gradient)
-                    .shadow(color: Color.bubble(peer.hue).opacity(0.5), radius: 14)
-                AvatarFace(name: peer.name, content: avatar, size: size)
-                if invited {
-                    Circle()
-                        .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .padding(-Self.ringInset)
-                }
+                    .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(-Self.ringInset)
             }
-            .frame(width: size, height: size)
+        }
+        .frame(width: size, height: size)
+        .rotationEffect(-stretchAngle)
+        .scaleEffect(x: 1 + stretch, y: 1 - stretch * 0.8)
+        .rotationEffect(stretchAngle)
+        .scaleEffect(lifted ? 1.08 : 1)
+        .contentShape(Circle())
+        .overlay(alignment: .bottom) {
             Text(invited ? "Invited…" : peer.name)
                 .font(.footnote.weight(.medium))
                 .lineLimit(1)
+                .fixedSize()
+                .alignmentGuide(.bottom) { $0[.top] - (Self.ringInset + 7) }
         }
-        .contentShape(.rect)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(peer.name)
         .accessibilityHint(invited ? "Invited" : "Double-tap to invite")
+        .accessibilityAddTraits(.isButton)
     }
 }
 

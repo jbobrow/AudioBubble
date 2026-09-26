@@ -14,7 +14,8 @@ See [PLAN.md](PLAN.md) for the original design and the reasoning behind it.
    Memoji or emoji for your bubble.
 2. **Put in your headphones.** They're required: without them you can't start or join a
    bubble, and if they come out mid-bubble your audio pauses until they're back.
-3. **Nearby people float as bubbles.** Tap someone to invite them. They get a banner,
+3. **Nearby people float as bubbles.** Drag or flick them around (they shove each other out of
+   the way). Tap someone to invite them. They get a banner,
    *"Jon wants to bubble with you"*, with **Join** and **Not now**.
 4. **In a bubble:** everyone gathers in one large circle and glows with their voice. There's
    Mute, Leave, and a Mic Mode button for choosing **Voice Isolation**.
@@ -70,7 +71,7 @@ own latency; Bluetooth headphones add a noticeable amount.
 
 | Folder | What's in it |
 |---|---|
-| `AudioBubble/Core/` | Platform-independent, unit-tested DSP and protocol: SPSC rings, wire protocol, jitter buffer, loss concealment, STFT, self-echo suppressor, limiter |
+| `AudioBubble/Core/` | Platform-independent, unit-tested DSP and protocol: SPSC rings, wire protocol, jitter buffer, loss concealment, STFT, self-echo suppressor, limiter, and the bubble physics |
 | `AudioBubble/Audio/` | Audio session (route, headphones, interruptions), the VoiceProcessingIO engine, the stream table / mixer |
 | `AudioBubble/Network/` | Bonjour + UDP mesh transport, the sender thread, the Wi-Fi monitor |
 | `AudioBubble/Model/` | `@Observable` app state: identity, peers, bubble membership, invites, latency |
