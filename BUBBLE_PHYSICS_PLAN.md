@@ -60,7 +60,8 @@ Each bubble is a `BubbleLayer`: a container `CALayer` with these sublayers.
   which touches only the circle and avatar, never the name). Wrap the updates in
   `CATransaction.setDisableActions(true)` so Core Animation adds no implicit animations.
 - No live shadows, no masks and no `cornerRadius` clipping on moving layers, so nothing forces
-  an off-screen render. Mark `glow` and `label` as opaque-free static contents.
+  an off-screen render. `glow` and `label` are static contents that are never redrawn per
+  frame; they just move with their container.
 - **Lifting a held bubble** (scale up, brighter glow) is a `CASpringAnimation` on the container
   scale and the glow's opacity, run by the render server, not per frame by us.
 - **Arrivals and departures:** a spring pop-in (scale 0.3 → 1 with opacity), and a quick fade
