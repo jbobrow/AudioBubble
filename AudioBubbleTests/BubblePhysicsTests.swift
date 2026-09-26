@@ -21,7 +21,7 @@ struct BubblePhysicsTests {
     /// Smallest distance between any two bodies minus the spacing they need, including room for
     /// the name under the upper one (≥ 0 means nothing overlaps).
     static func worstOverlap(_ physics: BubblePhysics) -> Double {
-        let bodies = Array(physics.bodies.values)
+        let bodies = physics.bodies
         var worst = Double.infinity
         for i in bodies.indices {
             for j in bodies.indices where j > i {
@@ -42,7 +42,7 @@ struct BubblePhysicsTests {
             physics.drag(1, to: physics.center)
             physics.step(1.0 / 120)
         }
-        let a = physics.bodies[1]!, b = physics.bodies[2]!
+        let a = physics.body(1)!, b = physics.body(2)!
         let d = Self.length(b.position - a.position)
         let vertical = abs(b.position.y - a.position.y) / d
         // Whatever the arrangement, the required clearance (including names) holds.
@@ -50,7 +50,7 @@ struct BubblePhysicsTests {
     }
 
     static func inside(_ physics: BubblePhysics) -> Bool {
-        physics.bodies.values.allSatisfy {
+        physics.bodies.allSatisfy {
             $0.position.x >= $0.radius - 0.5 && $0.position.x <= physics.size.x - $0.radius + 0.5
                 && $0.position.y >= $0.radius - 0.5
                 && $0.position.y <= physics.size.y - $0.radius - physics.bottomClearance + 0.5
@@ -64,7 +64,7 @@ struct BubblePhysicsTests {
         #expect(Self.worstOverlap(physics) > -3, "overlap \(Self.worstOverlap(physics))")
         #expect(Self.inside(physics))
         // Gathered around the middle, and calm (only the gentle drift).
-        for body in physics.bodies.values {
+        for body in physics.bodies {
             #expect(Self.length(body.position - physics.center) < 260)
             #expect(Self.length(body.velocity) < 40, "speed \(Self.length(body.velocity))")
         }
@@ -73,7 +73,7 @@ struct BubblePhysicsTests {
     @Test func aDraggedBubblePushesOthersAside() throws {
         let physics = Self.field(count: 2)
         Self.run(physics, seconds: 4)
-        let a = physics.bodies[1]!, b = physics.bodies[2]!
+        let a = physics.body(1)!, b = physics.body(2)!
         // Drag A straight through B's position.
         let start = a.position
         for step in 0...60 {
@@ -82,8 +82,8 @@ struct BubblePhysicsTests {
             physics.step(1.0 / 120)
             physics.step(1.0 / 120)
         }
-        let draggedTo = physics.bodies[1]!.position
-        let pushed = physics.bodies[2]!.position
+        let draggedTo = physics.body(1)!.position
+        let pushed = physics.body(2)!.position
         #expect(Self.length(pushed - b.position) > 40, "B moved \(Self.length(pushed - b.position))")
         #expect(Self.length(pushed - draggedTo) > a.radius + b.radius + physics.gap - 3)
         // The dragged bubble is exactly where the finger put it.
@@ -93,21 +93,21 @@ struct BubblePhysicsTests {
     @Test func aFlickCarriesMomentumThenSettles() {
         let physics = Self.field(count: 1)
         Self.run(physics, seconds: 3)
-        let start = physics.bodies[1]!.position
+        let start = physics.body(1)!.position
         physics.drag(1, to: start)
         physics.step(1.0 / 120)
         physics.endDrag(1, velocity: Vector(1_500, 0))
         Self.run(physics, seconds: 0.15)
-        #expect(physics.bodies[1]!.position.x > start.x + 60, "moved \(physics.bodies[1]!.position.x - start.x)")
+        #expect(physics.body(1)!.position.x > start.x + 60, "moved \(physics.body(1)!.position.x - start.x)")
         Self.run(physics, seconds: 6)
         #expect(Self.inside(physics))
-        #expect(Self.length(physics.bodies[1]!.position - physics.center) < 60)
+        #expect(Self.length(physics.body(1)!.position - physics.center) < 60)
     }
 
     @Test func staysInsideEvenWhenFlungHard() {
         let physics = Self.field(count: 4)
         Self.run(physics, seconds: 2)
-        physics.drag(1, to: physics.bodies[1]!.position)
+        physics.drag(1, to: physics.body(1)!.position)
         physics.step(1.0 / 120)
         physics.endDrag(1, velocity: Vector(-50_000, 50_000))   // capped to 3,000 pt/s
         for _ in 0..<600 {
@@ -119,10 +119,53 @@ struct BubblePhysicsTests {
     @Test func syncAddsAndRemovesBodies() {
         let physics = Self.field(count: 3)
         physics.sync([(id: 2, radius: 52), (id: 9, radius: 30)])
-        #expect(Set(physics.bodies.keys) == [2, 9])
-        #expect(physics.bodies[9]?.radius == 30)
+        #expect(Set(physics.bodies.map(\.id)) == [2, 9])
+        #expect(physics.body(9)?.radius == 30)
         // A new body never starts exactly on top of another.
         physics.sync([(id: 2, radius: 52), (id: 9, radius: 30), (id: 10, radius: 30)])
-        #expect(Self.length(physics.bodies[10]!.position - physics.bodies[9]!.position) > 1)
+        #expect(Self.length(physics.body(10)!.position - physics.body(9)!.position) > 1)
+    }
+
+    @Test func hitTestFindsTheBubbleUnderAFinger() {
+        let physics = Self.field(count: 3)
+        Self.run(physics, seconds: 3)
+        for body in physics.bodies {
+            #expect(physics.hitTest(body.position + Vector(body.radius * 0.6, 0)) == body.id)
+        }
+        #expect(physics.hitTest(Vector(-500, -500)) == nil)
+    }
+
+    @Test func twoFingersCanDragTwoBubbles() {
+        let physics = Self.field(count: 3)
+        Self.run(physics, seconds: 3)
+        let a = physics.body(1)!.position, b = physics.body(2)!.position
+        // Each finger grabs its bubble dead center, then both move apart.
+        for step in 0...60 {
+            let t = Double(step) / 60
+            physics.drag(1, to: a + Vector(-80, 0) * t)
+            physics.drag(2, to: b + Vector(80, 0) * t)
+            physics.step(1.0 / 120)
+        }
+        #expect(Self.length(physics.body(1)!.position - (a + Vector(-80, 0))) < 1e-6)
+        #expect(Self.length(physics.body(2)!.position - (b + Vector(80, 0))) < 1e-6)
+        #expect(!physics.isCalm)
+        physics.endDrag(1, velocity: .zero)
+        physics.endDrag(2, velocity: .zero)
+        Self.run(physics, seconds: 6)
+        #expect(physics.isCalm)
+    }
+
+    @Test func velocityEstimateIsSteadyAndStopsWhenTheFingerRests() {
+        var estimator = TouchVelocityEstimator()
+        // 120 Hz samples moving at (600, -300) pt/s with ±1.5 pt of jitter.
+        for i in 0..<30 {
+            let t = Double(i) / 120
+            let jitter = Vector(i % 2 == 0 ? 1.5 : -1.5, i % 3 == 0 ? 1.5 : -1.5)
+            estimator.add(Vector(600, -300) * t + jitter, at: t)
+        }
+        let v = estimator.velocity(at: 29.0 / 120)
+        #expect(abs(v.x - 600) < 60 && abs(v.y + 300) < 60, "estimated \(v)")
+        // Lifting 0.2 s after the last movement: a placement, not a flick.
+        #expect(estimator.velocity(at: 29.0 / 120 + 0.2) == .zero)
     }
 }

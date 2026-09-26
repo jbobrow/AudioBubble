@@ -6,6 +6,22 @@ than real time. But on a phone the screen updates at about **1 fps**. This plan 
 describes how to rebuild the view so it runs at the display's full rate (120 Hz on ProMotion)
 using almost no CPU.
 
+## Status
+
+Steps 1–7 are built: `BubbleFieldView` (Core Animation), `BubbleArt`, `BubbleField` (the
+SwiftUI bridge), the refactored `BubblePhysics` and `TouchVelocityEstimator`. It replaces the
+SwiftUI field on the main page.
+
+- **Simulator, Debug build:** 60 fps (the simulator's display rate). Physics plus layer updates
+  average 0.3–0.5 ms per frame while a bubble is dragged through the others, with occasional
+  3–5 ms peaks. Debug builds log this every two seconds (category `bubbles`). Launching with
+  `-demoDrag` drags a bubble around automatically, so the drag path can be measured without a
+  finger.
+- **Unit tests:** the physics tests, plus hit-testing, two-finger drags, calm detection and
+  velocity estimation.
+- **Still to do on a phone** (step 0 couldn't be run here): check the frame rate and hitches with
+  Instruments in a Release build, how drag and flick feel, and that idle drops to 30 Hz.
+
 ## Why the SwiftUI version is slow
 
 The view is built as `TimelineView(.animation)` → `ZStack` → one `PeerBubble` per person. Every

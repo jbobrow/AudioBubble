@@ -89,65 +89,24 @@ struct HomeView: View {
     }
 }
 
-/// Nearby people, floating as soft colored bubbles. On the main page they're a little physics
-/// toy (`BubblePhysics`): they cluster and drift, and you can drag or flick one and it shoves the
-/// others aside. Tap one to invite them.
+/// Nearby people, floating as soft colored bubbles. On the main page they're a physics toy drawn
+/// with Core Animation (`BubbleFieldView`): drag or flick them and they shove each other aside.
+/// Tap one to invite them.
 struct NearbyField: View {
     @Environment(AppModel.self) private var model
     let peers: [Peer]
     let compact: Bool
-    @State private var physics = BubblePhysics()
-    @State private var dragged: UInt64?
 
     var body: some View {
-        GeometryReader { geometry in
-            if compact {
-                row(in: geometry.size)
-            } else {
-                field(in: geometry.size)
-            }
+        if compact {
+            GeometryReader { geometry in row(in: geometry.size) }
+        } else {
+            BubbleField(bubbles: peers.map {
+                BubbleModel(id: $0.id, name: $0.name, hue: $0.hue, avatar: model.avatar(of: $0),
+                            invited: model.outgoingInvites[$0.id] != nil)
+            }, onTap: { model.invite($0) })
         }
     }
-
-    private static let fieldSize: CGFloat = 104
-
-    private func field(in size: CGSize) -> some View {
-        TimelineView(.animation) { timeline in
-            let _ = physics.update(size: size, items: peers.map { (id: $0.id, radius: Double(Self.fieldSize) / 2) },
-                                   date: timeline.date)
-            ZStack {
-                ForEach(peers) { peer in
-                    if let body = physics.bodies[peer.id] {
-                        let speed = (body.velocity.x * body.velocity.x + body.velocity.y * body.velocity.y).squareRoot()
-                        PeerBubble(peer: peer, avatar: model.avatar(of: peer), size: Self.fieldSize,
-                                   invited: model.outgoingInvites[peer.id] != nil,
-                                   stretch: CGFloat(min(speed / 2_200, 0.14)),
-                                   stretchAngle: .radians(atan2(body.velocity.y, body.velocity.x)),
-                                   lifted: dragged == peer.id)
-                            .position(x: body.position.x, y: body.position.y)
-                            .onTapGesture { model.invite(peer.id) }
-                            .gesture(
-                                DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.space))
-                                    .onChanged { value in
-                                        dragged = peer.id
-                                        physics.drag(peer.id, to: .init(value.location.x, value.location.y))
-                                    }
-                                    .onEnded { value in
-                                        dragged = nil
-                                        physics.endDrag(peer.id, velocity: .init(value.velocity.width, value.velocity.height))
-                                    }
-                            )
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
-            }
-            .frame(width: size.width, height: size.height)
-        }
-        .coordinateSpace(.named(Self.space))
-        .animation(.spring(duration: 0.3), value: dragged)
-    }
-
-    private static let space = "nearby-field"
 
     /// Inside a bubble: a simple row of smaller bubbles.
     private func row(in size: CGSize) -> some View {
@@ -170,11 +129,6 @@ struct PeerBubble: View {
     var avatar: AvatarContent = .initial
     let size: CGFloat
     var invited = false
-    /// Squash-and-stretch: 0 is round; the bubble lengthens along `stretchAngle` as it moves.
-    var stretch: CGFloat = 0
-    var stretchAngle: Angle = .zero
-    /// Held by a finger: a touch bigger, with a stronger glow.
-    var lifted = false
 
     /// How far the dashed "invited" ring sits outside the bubble.
     private static let ringInset: CGFloat = 7
@@ -185,7 +139,7 @@ struct PeerBubble: View {
         ZStack {
             Circle()
                 .fill(Color.bubble(peer.hue).gradient)
-                .shadow(color: Color.bubble(peer.hue).opacity(lifted ? 0.8 : 0.5), radius: lifted ? 24 : 14)
+                .shadow(color: Color.bubble(peer.hue).opacity(0.5), radius: 14)
             AvatarFace(name: peer.name, content: avatar, size: size)
             if invited {
                 Circle()
@@ -195,10 +149,6 @@ struct PeerBubble: View {
             }
         }
         .frame(width: size, height: size)
-        .rotationEffect(-stretchAngle)
-        .scaleEffect(x: 1 + stretch, y: 1 - stretch * 0.8)
-        .rotationEffect(stretchAngle)
-        .scaleEffect(lifted ? 1.08 : 1)
         .contentShape(Circle())
         .overlay(alignment: .bottom) {
             Text(invited ? "Invited…" : peer.name)

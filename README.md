@@ -120,6 +120,7 @@ Debug builds also take launch arguments:
 | `-nameStep` | Open the name and color step |
 | `-showSettings` | Open Settings on launch |
 | `-assumeHeadphones` | Act as if headphones are connected (simulators have none) |
+| `-demoDrag` | Drag a nearby bubble around automatically (for measuring the bubble field; frame timing is logged under category `bubbles`) |
 | `-avatarPicker` | With `-showSettings` or `-nameStep`, also open the Memoji picker |
 
 They also log each member's round trip, buffer depth, link and estimated latency once a
