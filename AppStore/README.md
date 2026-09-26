@@ -29,6 +29,9 @@ match the screenshots. Someone opens the app. People arrive one by one, a finger
 Maya, then taps Sam to invite him. Sam joins, then Maya and Ava, and each bubble glows in turn as
 that person talks.
 
+The middle section drags and flicks Maya, which needs the Core Animation bubble field on
+`claude/bubble-physics`. Reshoot it before shipping a build without that field.
+
 It meets Apple's current App Preview spec: 886 × 1920 portrait, 15–30 s, H.264 High Profile
 Level 4.0 at 30 fps and ~10.8 Mbps (target 10–12), a silent stereo AAC track at 48 kHz, and an
 .mp4 file of 34 MB (500 MB max).
@@ -75,7 +78,7 @@ subtitle, since those are indexed anyway.
 walkie talkie,intercom,headphones,airpods,concert,noisy,bar,group,voice,chat,offline,nearby,party
 ```
 
-## Description (2013 / 4000)
+## Description (1952 / 4000)
 
 In `description.txt`, ready to paste.
 
