@@ -7,16 +7,14 @@ const readout = document.getElementById('readout');
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const darkScheme = matchMedia('(prefers-color-scheme: dark)');
 
-// The app's demo people, in the app's palette: Color.bubble(hue) is HSB(hue, 0.55, 0.95).
+// You, and people nearby in the app's palette (Color.bubble(hue) is HSB(hue, 0.55, 0.95)),
+// each with a different Memoji from docs/people, shuffled on every visit.
+const MEMOJI_COUNT = 11;
+const memoji = Array.from({ length: MEMOJI_COUNT }, (_, i) => `people/memoji-${String(i + 1).padStart(2, '0')}.png`)
+  .sort(() => Math.random() - 0.5);
 const PEOPLE = [
-  { name: 'You', hue: 0.64, face: '🎧', you: true },
-  { name: 'Maya', hue: 0.92 },
-  { name: 'Sam', hue: 0.58, face: '😎' },
-  { name: 'Ava', hue: 0.12 },
-  { name: 'Leo', hue: 0.30, face: '🎸' },
-  { name: 'Priya', hue: 0.72 },
-  { name: 'Noah', hue: 0.06, face: '🐙' },
-  { name: 'Zoe', hue: 0.45 },
+  { hue: 0.64, emoji: '🎧', you: true },
+  ...[0.92, 0.58, 0.12, 0.30, 0.72, 0.06, 0.45].map((hue, i) => ({ hue, memoji: memoji[i] })),
 ];
 
 const BUBBLE_RADIUS = 1;
@@ -110,7 +108,7 @@ scene.add(bubble);
 
 darkScheme.addEventListener('change', (e) => { bubbleUniforms.uDark.value = e.matches ? 1 : 0; });
 
-// People: glossy bubbles with a face (an emoji or their initial) and a glow for when they talk.
+// People: glossy bubbles with a face (a Memoji, or your 🎧) and a glow for when they talk.
 
 function spriteTexture(draw) {
   const c = document.createElement('canvas');
@@ -118,11 +116,6 @@ function spriteTexture(draw) {
   draw(c.getContext('2d'));
   const texture = new THREE.CanvasTexture(c);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.userData.redraw = () => {
-    c.getContext('2d').clearRect(0, 0, 256, 256);
-    draw(c.getContext('2d'));
-    texture.needsUpdate = true;
-  };
   return texture;
 }
 
@@ -135,19 +128,29 @@ const glowTexture = spriteTexture((ctx) => {
   ctx.fillRect(0, 0, 256, 256);
 });
 
-function faceTexture(person) {
-  return spriteTexture((ctx) => {
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    if (person.face) {
+const textureLoader = new THREE.TextureLoader();
+
+function makeFace(person) {
+  const material = new THREE.SpriteMaterial({ depthTest: false, depthWrite: false });
+  const face = new THREE.Sprite(material);
+  face.renderOrder = 2;
+  if (person.memoji) {
+    face.visible = false;
+    textureLoader.load(person.memoji, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      material.map = texture;
+      material.needsUpdate = true;
+      face.visible = true;
+    });
+  } else {
+    material.map = spriteTexture((ctx) => {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.font = '112px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-      ctx.fillText(person.face, 128, 136);
-    } else {
-      ctx.font = '600 104px ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(30, 24, 40, 0.62)';
-      ctx.fillText(person.name[0], 128, 134);
-    }
-  });
+      ctx.fillText(person.emoji, 128, 136);
+    });
+  }
+  return face;
 }
 
 const sphereGeometry = new THREE.SphereGeometry(1, 64, 48);
@@ -162,8 +165,7 @@ const people = PEOPLE.map((def, i) => {
     emissive: color,
     emissiveIntensity: 0.15,
   }));
-  const face = new THREE.Sprite(new THREE.SpriteMaterial({ map: faceTexture(def), depthTest: false, depthWrite: false }));
-  face.renderOrder = 2;
+  const face = makeFace(def);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({
     map: glowTexture, color, transparent: true, opacity: 0, depthWrite: false,
   }));
@@ -279,13 +281,12 @@ function pokeBubble(point) {
 }
 
 function updateReadout() {
-  const names = members.filter((p) => !p.you).map((p) => p.name);
+  const friends = members.length - 1;
   let text;
-  if (names.length === 0) text = 'Just you so far. Tap someone to invite them.';
-  else if (names.length === PEOPLE.length - 1) text = 'Everyone’s in. You can all hear each other.';
-  else if (names.length >= 4) text = `You and ${names.length} friends can hear each other.`;
-  else if (names.length === 1) text = `You and ${names[0]} can hear each other.`;
-  else text = `You, ${names.slice(0, -1).join(', ')} and ${names.at(-1)} can hear each other.`;
+  if (friends === 0) text = 'Just you so far. Tap someone to invite them.';
+  else if (friends === PEOPLE.length - 1) text = 'Everyone’s in. You can all hear each other.';
+  else if (friends === 1) text = 'You and a friend can hear each other.';
+  else text = `You and ${friends} friends can hear each other.`;
   readout.textContent = text;
 }
 
@@ -425,7 +426,7 @@ function frame(time) {
 
     toCamera.subVectors(camera.position, p.pos).normalize();
     p.face.position.copy(p.pos).addScaledVector(toCamera, size * 1.02);
-    p.face.scale.setScalar(size * 2);
+    p.face.scale.setScalar(size * (p.memoji ? 1.6 : 2));
 
     p.halo.position.copy(p.pos);
     p.halo.scale.setScalar(size * 4);
@@ -435,6 +436,5 @@ function frame(time) {
   renderer.render(scene, camera);
 }
 
-document.fonts?.ready.then(() => people.forEach((p) => p.face.material.map.userData.redraw()));
 people.forEach((p) => p.pos.copy(p.inside ? new THREE.Vector3() : p.anchor));
 renderer.setAnimationLoop(frame);

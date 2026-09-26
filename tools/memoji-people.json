@@ -1,0 +1,48 @@
+[
+  { "about": "long straight dark hair, side part, big smile",
+    "pose": "big_happy", "skin": "Fitzpatrick 2", "hair": "straight_long_down_sidePart", "hairColor": "Soft Black",
+    "eyebrows": "even_rounded_medium" },
+
+  { "about": "long wavy brown hair with blond highlights, small gold studs",
+    "pose": "happy", "skin": "Fitzpatrick 3", "hair": "wavy_long_down_sidePart", "hairColor": "Maple",
+    "highlights": "gradient", "highlightsColor": "Golden Blond", "eyebrows": "even_rounded_medium",
+    "earrings": "roundStud", "earringsColor": "Gold" },
+
+  { "about": "big natural curls, small silver hoops",
+    "pose": "pleasant_neutral", "skin": "Fitzpatrick 5", "hair": "curly_medium_up", "hairColor": "Soft Black",
+    "eyebrows": "even_rounded_medium", "earrings": "smallHoop", "earringsColor": "Silver" },
+
+  { "about": "big natural curls, clear glasses, gold pendant earrings",
+    "pose": "big_happy", "skin": "Fitzpatrick 4.5", "hair": "tightCurls_medium_up_blowout", "hairColor": "Soft Black",
+    "eyebrows": "even_rounded_medium", "eyewear": "rectangle", "eyewearColor": "Clear",
+    "earrings": "trianglePendant", "earringsColor": "Gold" },
+
+  { "about": "turquoise turban, full black beard",
+    "pose": "big_happy", "skin": "Fitzpatrick 4", "hair": "none", "hairColor": "Black",
+    "headwear": "dastar", "headwearColor": "Blue", "facialHair": "basic_full",
+    "eyebrows": "even_angled_thick" },
+
+  { "about": "long twists, pinned up, gold hoops",
+    "pose": "big_happy", "skin": "Fitzpatrick 5", "hair": "locks_long_mid_upDo", "hairColor": "Soft Black",
+    "eyebrows": "even_rounded_medium", "earrings": "largeHoop", "earringsColor": "Gold" },
+
+  { "about": "long dark curls, black rectangular glasses",
+    "pose": "pleasant_neutral", "skin": "Fitzpatrick 3", "hair": "looseCurls_long_down_sidePart", "hairColor": "Soft Black",
+    "eyebrows": "even_rounded_medium", "eyewear": "rectangle", "eyewearColor": "Black" },
+
+  { "about": "long straight black hair, thin mustache and goatee",
+    "pose": "pleasant_neutral", "skin": "Fitzpatrick 2", "hair": "straight_long_down_centerPart", "hairColor": "Black",
+    "facialHair": "pencil_goatee_shadow", "eyebrows": "even_angled_medium" },
+
+  { "about": "short dark tousled hair, round black glasses",
+    "pose": "pleasant_neutral", "skin": "Fitzpatrick 1", "hair": "wavy_short_up_bedHead", "hairColor": "Soft Black",
+    "eyebrows": "even_angled_thick", "eyewear": "round", "eyewearColor": "Black" },
+
+  { "about": "long twists, thick black glasses, big smile",
+    "pose": "big_happy", "skin": "Fitzpatrick 5", "hair": "locks_long_down_sidePart", "hairColor": "Black",
+    "eyebrows": "even_rounded_medium", "eyewear": "square", "eyewearColor": "Black" },
+
+  { "about": "short black textured hair, big smile",
+    "pose": "big_happy", "skin": "Fitzpatrick 2", "hair": "straight_short_up_sidePart", "hairColor": "Black",
+    "eyebrows": "even_angled_medium" }
+]
