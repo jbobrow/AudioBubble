@@ -65,6 +65,9 @@ final class AppModel {
     @ObservationIgnored private var avatarFailures: [UInt32: Date] = [:]
     @ObservationIgnored private var avatarLastServed: [UInt64: Date] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "com.jonbobrow.AudioBubble", category: "model")
+    /// (DEBUG) `-screenshotDemo nearby|bubble|invite|video` fills the app with made-up people for
+    /// App Store screenshots and the App Preview. Always nil in release builds.
+    @ObservationIgnored private let demoScene = DebugLaunch.value(after: "-screenshotDemo")
 
     static let helloInterval: Duration = .seconds(1)
     static let resendDelays: [Duration] = [.zero, .milliseconds(250), .milliseconds(750), .milliseconds(1_500)]
@@ -89,6 +92,9 @@ final class AppModel {
             isOnWiFiNetwork = joined
             sendHellos()
         }
+        #if DEBUG
+        if let demoScene { setUpDemo(demoScene) }
+        #endif
         if identity != nil { start() }
     }
 
@@ -116,10 +122,20 @@ final class AppModel {
     func peer(_ id: UInt64) -> Peer? { peers[id] }
 
     /// Live voice level of a member (0...1). Read it from a TimelineView; it isn't observable.
-    func level(of peer: UInt64) -> Float { streams.level(of: peer) }
+    func level(of peer: UInt64) -> Float {
+        #if DEBUG
+        if demoScene != nil { return demoLevel(of: peer) }
+        #endif
+        return streams.level(of: peer)
+    }
 
     /// Your own mic level (0...1), zero when muted.
-    var myLevel: Float { isMuted ? 0 : engine.micLevel }
+    var myLevel: Float {
+        #if DEBUG
+        if demoScene != nil { return isMuted ? 0 : demoLevel(of: localID) }
+        #endif
+        return isMuted ? 0 : engine.micLevel
+    }
 
     /// Estimated mouth-to-ear latency from a member to you, in milliseconds.
     func latencyMilliseconds(from peer: UInt64) -> Double? {
@@ -382,6 +398,9 @@ final class AppModel {
         reconcile()
         #if DEBUG
         debugAutomation()
+        if demoScene != nil {
+            for id in peers.keys where id <= UInt64(Self.demoPeople.count) { peers[id]?.lastSeen = now }
+        }
         #endif
     }
 
@@ -401,6 +420,86 @@ final class AppModel {
             let rtt = member.rttMilliseconds ?? -1
             log.debug("member \(member.name) [\(member.linkInterface ?? "?")\(member.onWiFi ? ", on Wi-Fi" : "")\(self.isSuppressingEcho(from: member.id) ? ", echo suppressed" : "")]: rtt \(rtt, format: .fixed(precision: 1)) ms, buffer \(depth, format: .fixed(precision: 1)) ms, level \(self.level(of: member.id)), latency \(latency, format: .fixed(precision: 1)) ms, mic \(self.myLevel)")
         }
+    }
+
+    private static let demoPeople: [(name: String, hue: Double, emoji: String?)] = [
+        ("Maya", 0.92, nil), ("Sam", 0.58, "😎"), ("Ava", 0.12, nil), ("Leo", 0.30, "🎸"),
+        ("Priya", 0.72, nil), ("Noah", 0.06, "🐙"), ("Zoe", 0.45, nil),
+    ]
+
+    /// Made-up people (ids 1...7) and state for one screenshot. Nothing is saved, and no audio runs.
+    /// "nearby": everyone floating, Sam invited. "bubble": you, Maya, Sam and Ava in a bubble,
+    /// the rest nearby. "invite": Maya's invite on top of everyone nearby. "video": see
+    /// `playDemoVideo`.
+    private func setUpDemo(_ scene: String) {
+        identity = Identity(name: "Alex", hue: 0.64, avatar: .emoji("🎧"))
+        wifiAdviceDismissed = true
+        let bubble = UUID()
+        if scene == "video" {
+            micModeName = "Voice Isolation"
+            Task { await playDemoVideo() }
+            return
+        }
+        for index in Self.demoPeople.indices {
+            addDemoPerson(index, bubble: scene == "bubble" && index < 3 ? bubble : nil)
+        }
+        switch scene {
+        case "bubble":
+            bubbleID = bubble
+            micModeName = "Voice Isolation"
+        case "invite":
+            incomingInvite = IncomingInvite(id: UUID(), from: 1, bubble: UUID(), received: .distantFuture)
+        default:
+            outgoingInvites[2] = OutgoingInvite(id: UUID(), bubble: UUID(), sent: .distantFuture)
+        }
+    }
+
+    private func addDemoPerson(_ index: Int, bubble: UUID? = nil) {
+        let person = Self.demoPeople[index]
+        let id = UInt64(index + 1)
+        peers[id] = Peer(id: id, name: person.name, hue: person.hue, bubble: bubble,
+                         lastSeen: now, lastHelloTime: 0, rttMilliseconds: 4, emoji: person.emoji)
+    }
+
+    /// The App Preview's story, about 25 seconds: looking for people, then everyone arrives one
+    /// by one. `BubbleFieldView` drags Maya around, flicks her, and taps Sam; Sam accepts, and
+    /// Maya and Ava join the bubble soon after.
+    private func playDemoVideo() async {
+        try? await Task.sleep(for: .seconds(3))
+        for index in Self.demoPeople.indices {
+            addDemoPerson(index)
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+        // The Core Animation bubble field taps Sam with a visible finger; without it, invite him here.
+        for _ in 0..<180 where outgoingInvites[2] == nil { try? await Task.sleep(for: .milliseconds(50)) }
+        if outgoingInvites[2] == nil { invite(2) }
+        try? await Task.sleep(for: .seconds(1.8))
+        guard let invite = outgoingInvites.removeValue(forKey: 2) else { return }
+        peers[2]?.bubble = invite.bubble
+        join(invite.bubble)
+        demoTalkStart = Date()
+        try? await Task.sleep(for: .seconds(2.2))
+        peers[1]?.bubble = invite.bubble
+        try? await Task.sleep(for: .seconds(1.4))
+        peers[3]?.bubble = invite.bubble
+    }
+
+    /// When the video's bubble started, for taking turns talking.
+    @ObservationIgnored private var demoTalkStart = Date()
+
+    /// Made-up voice levels. Screenshots: Maya is talking; everyone else murmurs. Video: people
+    /// take turns, Sam first.
+    private func demoLevel(of peer: UInt64) -> Float {
+        let now = Date()
+        let t = now.timeIntervalSinceReferenceDate
+        var speaker: UInt64 = 1
+        if demoScene == "video" {
+            let turns: [UInt64] = [2, localID, 1, 3, 2, 1]
+            speaker = turns[Int(now.timeIntervalSince(demoTalkStart) / 1.8) % turns.count]
+        }
+        guard peer == speaker else { return Float(0.012 * (0.8 + 0.2 * sin(t * 5 + Double(peer % 97)))) }
+        // Syllables: a quick wobble on a slower swell.
+        return Float(0.3 * (0.55 + 0.3 * abs(sin(t * 7.5)) + 0.15 * sin(t * 2.1)))
     }
     #endif
 
@@ -428,7 +527,7 @@ final class AppModel {
         }
 
         // Never from the speaker: without headphones your audio is paused, both ways.
-        let shouldRun = bubbleID != nil && !memberIDs.isEmpty && headphonesConnected
+        let shouldRun = bubbleID != nil && !memberIDs.isEmpty && headphonesConnected && demoScene == nil
         guard shouldRun != audioActive else { return }
         audioActive = shouldRun
         if shouldRun {
@@ -469,6 +568,9 @@ final class AppModel {
     }
 
     private func handle(_ message: ControlMessage, from sender: UInt64) {
+        #if DEBUG
+        if demoScene != nil { return }   // only the made-up people, never a real phone nearby
+        #endif
         switch message {
         case let .hello(hello):
             handleHello(hello, from: sender)

@@ -120,6 +120,7 @@ Debug builds also take launch arguments:
 | `-showSettings` | Open Settings on launch |
 | `-assumeHeadphones` | Act as if headphones are connected (simulators have none) |
 | `-avatarPicker` | With `-showSettings` or `-nameStep`, also open the Memoji picker |
+| `-screenshotDemo <nearby\|bubble\|invite\|video>` | Fill the app with made-up people for App Store screenshots; `video` plays the App Preview's scripted story (see [AppStore/](AppStore/README.md)) |
 
 They also log each member's round trip, buffer depth, link and estimated latency once a
 second (subsystem `com.jonbobrow.AudioBubble`, category `model`).
