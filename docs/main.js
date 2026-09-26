@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const canvas = document.getElementById('bubbles');
 const stage = canvas.parentElement;
@@ -7,23 +6,27 @@ const readout = document.getElementById('readout');
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const darkScheme = matchMedia('(prefers-color-scheme: dark)');
 
-// You, and people nearby in the app's palette (Color.bubble(hue) is HSB(hue, 0.55, 0.95)),
-// each with a different Memoji from docs/people, shuffled on every visit.
+// You, and people nearby, each with a different Memoji from docs/people and a color from the
+// app's palette (Palette.hues), shuffled on every visit.
 const MEMOJI_COUNT = 11;
-const memoji = Array.from({ length: MEMOJI_COUNT }, (_, i) => `people/memoji-${String(i + 1).padStart(2, '0')}.png`)
-  .sort(() => Math.random() - 0.5);
+const PALETTE = [0.58, 0.64, 0.72, 0.82, 0.92, 0.99, 0.06, 0.12, 0.30, 0.45];
+const YOUR_HUE = 0.64;
+const shuffled = (items) => items.map((item) => [Math.random(), item]).sort((a, b) => a[0] - b[0]).map(([, item]) => item);
+const memoji = shuffled(Array.from({ length: MEMOJI_COUNT }, (_, i) => `people/memoji-${String(i + 1).padStart(2, '0')}.png`));
+const hues = shuffled(PALETTE.filter((hue) => hue !== YOUR_HUE));
 const PEOPLE = [
-  { hue: 0.64, emoji: '🎧', you: true },
-  ...[0.92, 0.58, 0.12, 0.30, 0.72, 0.06, 0.45].map((hue, i) => ({ hue, memoji: memoji[i] })),
+  { hue: YOUR_HUE, emoji: '🎧', you: true },
+  ...hues.slice(0, 7).map((hue, i) => ({ hue, memoji: memoji[i] })),
 ];
 
 const BUBBLE_RADIUS = 1;
 const NEARBY_RADIUS = 0.26;
 
+// The app's Color.bubble(hue): HSB(hue, 0.55, 0.95).
 function bubbleColor(hue) {
   const v = 0.95, s = 0.55;
   const l = v * (1 - s / 2);
-  return new THREE.Color().setHSL(hue, (v - l) / Math.min(l, 1 - l), l);
+  return new THREE.Color().setHSL(hue, (v - l) / Math.min(l, 1 - l), l, THREE.SRGBColorSpace);
 }
 
 // Scene
@@ -32,14 +35,6 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true 
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 
 const scene = new THREE.Scene();
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.35;
-
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
-keyLight.position.set(-2, 3, 4);
-scene.add(keyLight);
-
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 let cameraDistance = 8;
 
@@ -155,16 +150,49 @@ function makeFace(person) {
 
 const sphereGeometry = new THREE.SphereGeometry(1, 64, 48);
 
+// Keeps the app's exact color, lit like its Color.gradient fill (a touch lighter at the top),
+// with a small highlight to make it round. A little see-through, more so in the middle, like glass.
+function personMaterial(color) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: color }, uGlow: { value: 0 } },
+    transparent: true,
+    vertexShader: /* glsl */ `
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying float vHeight;
+      void main() {
+        vec4 view = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vView = normalize(-view.xyz);
+        vHeight = position.y * 0.5 + 0.5;
+        gl_Position = projectionMatrix * view;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      uniform float uGlow;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      varying float vHeight;
+      void main() {
+        vec3 n = normalize(vNormal);
+        vec3 light = normalize(vec3(-0.4, 0.7, 0.6));
+        vec3 color = uColor * mix(0.86, 1.08, vHeight);
+        color *= 0.8 + 0.2 * max(dot(n, light), 0.0);
+        float highlight = 0.3 * pow(max(dot(reflect(-light, n), vView), 0.0), 40.0);
+        color += highlight + uColor * uGlow;
+        float edge = 1.0 - max(dot(n, vView), 0.0);
+        float alpha = mix(0.86, 1.0, edge * edge) + highlight;
+        gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+}
+
 const people = PEOPLE.map((def, i) => {
   const color = bubbleColor(def.hue);
-  const mesh = new THREE.Mesh(sphereGeometry, new THREE.MeshPhysicalMaterial({
-    color,
-    roughness: 0.35,
-    clearcoat: 1,
-    clearcoatRoughness: 0.08,
-    emissive: color,
-    emissiveIntensity: 0.15,
-  }));
+  const mesh = new THREE.Mesh(sphereGeometry, personMaterial(color));
   const face = makeFace(def);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({
     map: glowTexture, color, transparent: true, opacity: 0, depthWrite: false,
@@ -422,15 +450,15 @@ function frame(time) {
     const size = p.radius * Math.max(0, p.scale) * (1 + p.level * 0.07);
     p.mesh.position.copy(p.pos);
     p.mesh.scale.setScalar(size);
-    p.mesh.material.emissiveIntensity = 0.15 + p.level * 0.3;
+    p.mesh.material.uniforms.uGlow.value = p.level * 0.25;
 
     toCamera.subVectors(camera.position, p.pos).normalize();
     p.face.position.copy(p.pos).addScaledVector(toCamera, size * 1.02);
     p.face.scale.setScalar(size * (p.memoji ? 1.6 : 2));
 
     p.halo.position.copy(p.pos);
-    p.halo.scale.setScalar(size * 4);
-    p.halo.material.opacity = p.level;
+    p.halo.scale.setScalar(size * 3);
+    p.halo.material.opacity = 0.45 + p.level * 0.55;
   });
 
   renderer.render(scene, camera);
