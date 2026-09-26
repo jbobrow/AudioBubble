@@ -488,14 +488,11 @@ private final class DemoFinger {
     private var visible = false
 
     init(in parent: CALayer) {
-        dot.bounds = CGRect(x: 0, y: 0, width: 50, height: 50)
-        dot.cornerRadius = 25
-        dot.backgroundColor = UIColor.white.withAlphaComponent(0.4).cgColor
-        dot.borderColor = UIColor.white.withAlphaComponent(0.85).cgColor
-        dot.borderWidth = 2
-        dot.shadowColor = UIColor.black.cgColor
-        dot.shadowOpacity = 0.3
-        dot.shadowRadius = 6
+        dot.bounds = CGRect(x: 0, y: 0, width: 62, height: 62)
+        dot.cornerRadius = 31
+        dot.backgroundColor = UIColor.white.withAlphaComponent(0.55).cgColor
+        dot.borderColor = UIColor.white.cgColor
+        dot.borderWidth = 3
         dot.opacity = 0
         dot.zPosition = 1_000
         parent.addSublayer(dot)
