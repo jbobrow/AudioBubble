@@ -81,7 +81,7 @@ struct BubbleView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             if model.members.isEmpty {
-                Text(model.outgoingInvites.isEmpty ? "Everyone else has left" : "Waiting for them to join…")
+                Text((model.outgoingInvites.isEmpty ? "Everyone else has left" : "Waiting for them to join…").withoutWidows)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -166,7 +166,7 @@ struct LatencyReadout: View {
                 HStack(spacing: 6) {
                     Image(systemName: "waveform")
                     if parts.isEmpty {
-                        Text("Measuring latency…")
+                        Text("Measuring latency…".withoutWidows)
                     } else {
                         Text("~\(Self.ms(parts.map(\.total))) ms mouth to ear")
                         Image(systemName: showsDetails ? "chevron.up" : "chevron.down")
@@ -202,9 +202,9 @@ struct WiFiAdviceCard: View {
                 .font(.title3)
                 .foregroundStyle(.yellow)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Leave Wi-Fi for clearer, faster audio")
+                Text("Leave Wi-Fi for clearer, faster audio".withoutWidows)
                     .font(.subheadline.weight(.semibold))
-                Text("Open Control Center and tap Wi-Fi. You'll leave the network, but Wi-Fi stays on for nearby devices, which is all your bubble needs.")
+                Text("Open Control Center and tap Wi-Fi. You'll leave the network, but Wi-Fi stays on for nearby devices, which is all your bubble needs.".withoutWidows)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

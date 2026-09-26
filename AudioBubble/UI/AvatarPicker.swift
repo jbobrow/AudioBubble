@@ -16,9 +16,9 @@ struct AvatarPicker: View {
     var body: some View {
         VStack(spacing: 18) {
             Capsule().fill(.white.opacity(0.25)).frame(width: 36, height: 5).padding(.top, 8)
-            Text("Choose your Memoji")
+            Text("Choose your Memoji".withoutWidows)
                 .font(.title3.weight(.semibold))
-            Text("On the emoji keyboard, swipe right to your Memoji stickers, or pick any emoji.")
+            Text("On the emoji keyboard, swipe right to your Memoji stickers, or pick any emoji.".withoutWidows)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -31,7 +31,7 @@ struct AvatarPicker: View {
                     .frame(width: 84, height: 84)
             }
             if failed {
-                Text("That one couldn't be used. Try another.")
+                Text("That one couldn't be used. Try another.".withoutWidows)
                     .font(.footnote)
                     .foregroundStyle(.orange)
             }

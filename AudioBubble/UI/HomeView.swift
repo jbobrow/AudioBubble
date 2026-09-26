@@ -17,7 +17,7 @@ struct HomeView: View {
                 BubbleView()
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
                 if !model.nearby.isEmpty {
-                    Text("Nearby — tap to invite")
+                    Text("Nearby — tap to invite".withoutWidows)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.top, 8)
@@ -176,10 +176,10 @@ struct EmptyNearbyView: View {
             let waited = timeline.date.timeIntervalSince(model.searchStarted)
             VStack(spacing: 14) {
                 PulsingDot()
-                Text("Looking for people nearby…")
+                Text("Looking for people nearby…".withoutWidows)
                     .font(.headline)
                 if waited > 5 {
-                    Text("Keep Wi-Fi on. No network needed.")
+                    Text("Keep Wi-Fi on. No network needed.".withoutWidows)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .transition(.opacity)

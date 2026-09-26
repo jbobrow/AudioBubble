@@ -42,6 +42,9 @@ final class AppModel {
     private(set) var headphonesConnected = true
     /// Set when an action needed headphones; the UI shows "Connect your headphones".
     var showsHeadphonesRequired = false
+    /// Briefly true after headphones connect, to confirm it ("Headphones connected").
+    private(set) var showsHeadphonesConfirmation = false
+    @ObservationIgnored private var confirmationTask: Task<Void, Never>?
 
     // MARK: Engine
 
@@ -79,9 +82,7 @@ final class AppModel {
         transport.onDiscoveryChanged = { [weak self] peers in self?.discovered = peers }
         transport.onLinkChanged = { [weak self] peer, interface in self?.peers[peer]?.linkInterface = interface }
         session.onRouteChange = { [weak self] in
-            guard let self else { return }
-            headphonesConnected = Self.checkHeadphones()
-            reconcile()
+            self?.refreshHeadphones()
         }
         wifiMonitor.onChange = { [weak self] joined in
             guard let self, joined != isOnWiFiNetwork else { return }
@@ -270,14 +271,39 @@ final class AppModel {
         }
     }
 
-    /// Headphones connected, or the DEBUG `-assumeHeadphones` switch (simulators have none).
+    /// Headphones connected, or (DEBUG) faked for simulators, which have none: launch with
+    /// `-assumeHeadphones`, or flip `debug.fakeHeadphones` in user defaults while running.
     private static func checkHeadphones() -> Bool {
-        AudioSessionController.headphonesConnected || DebugLaunch.has("-assumeHeadphones")
+        #if DEBUG
+        if DebugLaunch.has("-assumeHeadphones") || UserDefaults.standard.bool(forKey: "debug.fakeHeadphones") { return true }
+        #endif
+        return AudioSessionController.headphonesConnected
+    }
+
+    /// Re-checks headphones (on route changes and every second). When they've just connected,
+    /// closes any "Connect your headphones" prompt and briefly confirms.
+    private func refreshHeadphones() {
+        let connected = Self.checkHeadphones()
+        guard connected != headphonesConnected else { return }
+        headphonesConnected = connected
+        if connected {
+            showsHeadphonesRequired = false
+            showsHeadphonesConfirmation = true
+            confirmationTask?.cancel()
+            confirmationTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2.5))
+                guard !Task.isCancelled else { return }
+                self?.showsHeadphonesConfirmation = false
+            }
+        } else {
+            showsHeadphonesConfirmation = false
+        }
+        reconcile()
     }
 
     /// True if headphones are connected; otherwise asks the user to connect them.
     private func requireHeadphones() -> Bool {
-        headphonesConnected = Self.checkHeadphones()
+        refreshHeadphones()
         if !headphonesConnected { showsHeadphonesRequired = true }
         return headphonesConnected
     }
@@ -330,6 +356,7 @@ final class AppModel {
 
     private func start() {
         AudioSessionController.requestMicrophonePermission()
+        AudioSessionController.prepareCategory()
         headphonesConnected = Self.checkHeadphones()
         wifiMonitor.start()
         transport.start()
@@ -351,6 +378,7 @@ final class AppModel {
         }
         if audioActive { micModeName = AudioSessionController.micModeName }
         retryAvatarFetches()
+        refreshHeadphones()
         reconcile()
         #if DEBUG
         debugAutomation()

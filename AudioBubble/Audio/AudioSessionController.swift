@@ -40,11 +40,18 @@ final class AudioSessionController {
         if active { start() } else { stop() }
     }
 
+    /// Sets the voice-chat category without activating the session. That changes nothing
+    /// audible, but makes `availableInputs` list connected headsets (AirPods), which is how
+    /// `headphonesConnected` sees them before a bubble starts.
+    static func prepareCategory() {
+        try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .voiceChat,
+                                                         options: [.allowBluetoothHFP, .defaultToSpeaker])
+    }
+
     private func start() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .voiceChat,
-                                    options: [.allowBluetoothHFP, .defaultToSpeaker])
+            Self.prepareCategory()
             try session.setPreferredSampleRate(AudioFormat.sampleRate)
             try session.setPreferredIOBufferDuration(0.005)
             try session.setActive(true)
@@ -76,9 +83,16 @@ final class AudioSessionController {
     /// Whether audio is going to headphones (wired, USB or Bluetooth, such as AirPods). The app is
     /// meant to be used with them: from the speaker, everyone nearby hears the bubble too, and
     /// echo cancellation has to work much harder.
+    ///
+    /// Checks both the current route and the available inputs: while the voice-chat session is
+    /// inactive, newly connected AirPods don't become the route until it's activated, but their
+    /// mic is already listed as an available input.
     static var headphonesConnected: Bool {
-        let headphoneTypes: Set<AVAudioSession.Port> = [.headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio]
-        return AVAudioSession.sharedInstance().currentRoute.outputs.contains { headphoneTypes.contains($0.portType) }
+        let session = AVAudioSession.sharedInstance()
+        let headphoneOutputs: Set<AVAudioSession.Port> = [.headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio]
+        let headsetInputs: Set<AVAudioSession.Port> = [.bluetoothHFP, .bluetoothLE, .headsetMic, .usbAudio]
+        return session.currentRoute.outputs.contains { headphoneOutputs.contains($0.portType) }
+            || (session.availableInputs ?? []).contains { headsetInputs.contains($0.portType) }
     }
 
     /// Asks for the microphone up front, so joining a bubble never waits on a prompt.

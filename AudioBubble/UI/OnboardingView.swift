@@ -26,7 +26,7 @@ private struct NameStep: View {
         VStack(spacing: 24) {
             Spacer()
             EditableAvatar(name: name, hue: hue, avatar: $avatar, size: 110)
-            Text("What should people call you?")
+            Text("What should people call you?".withoutWidows)
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
             TextField("Your name", text: $name)

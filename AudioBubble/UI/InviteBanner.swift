@@ -12,11 +12,11 @@ struct InviteBanner: View {
                 BubbleAvatar(name: peer?.name ?? "?", hue: peer?.hue ?? 0.6, size: 48,
                              content: peer.map(model.avatar(of:)) ?? .initial)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(peer?.name ?? "Someone") wants to bubble with you")
+                    Text("\(peer?.name ?? "Someone") wants to bubble with you".withoutWidows)
                         .font(.subheadline.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
                     if !model.headphonesConnected {
-                        Label("Connect headphones to join", systemImage: "airpods")
+                        Label("Connect headphones to join".withoutWidows, systemImage: "airpods")
                             .font(.caption)
                             .foregroundStyle(.yellow)
                     }

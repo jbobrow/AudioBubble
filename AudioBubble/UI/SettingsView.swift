@@ -28,7 +28,7 @@ struct SettingsView: View {
                         .padding(.bottom, 16)
                         .textCase(nil)
                 } footer: {
-                    Text("Tap your bubble to use a Memoji or emoji. People nearby see your name, color and bubble.")
+                    Text("Tap your bubble to use a Memoji or emoji. People nearby see your name, color and bubble.".withoutWidows)
                 }
 
                 Section {
@@ -38,7 +38,7 @@ struct SettingsView: View {
                 Section {
                     Toggle("Debug mode", isOn: $debugMode)
                 } footer: {
-                    Text("Shows latency, connection and echo details in your bubble.")
+                    Text("Shows latency, connection and echo details in your bubble.".withoutWidows)
                 }
             }
             .scrollContentBackground(.hidden)

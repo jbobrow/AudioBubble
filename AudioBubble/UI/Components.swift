@@ -95,11 +95,11 @@ struct HeadphonesNotice: View {
                 .font(.title3)
                 .foregroundStyle(paused ? .yellow : .white)
             VStack(alignment: .leading, spacing: 2) {
-                Text(paused ? "Your bubble is paused" : "Connect headphones to join a bubble")
+                Text((paused ? "Your bubble is paused" : "Connect headphones to join a bubble").withoutWidows)
                     .font(.subheadline.weight(.semibold))
-                Text(paused
-                     ? "Put your headphones back in to keep talking. You won't hear or send audio until you do."
-                     : "Audio Bubble works with AirPods or other headphones, so only the people in your bubble hear it.")
+                Text((paused
+                      ? "Put your headphones back in to keep talking. You won't hear or send audio until you do."
+                      : "Audio Bubble works with AirPods or other headphones, so only the people in your bubble hear it.").withoutWidows)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
