@@ -94,4 +94,8 @@ In `description.txt`, ready to paste.
   > the same place can talk through their headphones. Testing needs two iPhones with Wi-Fi on
   > and headphones connected. Open the app on both, tap the other person's bubble, then tap
   > Join. No account or sign-in is needed.
-- **Support URL** and **Privacy Policy URL:** required; not in this folder yet.
+- **Support URL:** https://jbobrow.github.io/AudioBubble/support/
+- **Privacy Policy URL:** https://jbobrow.github.io/AudioBubble/privacy/
+- **Marketing URL:** https://jbobrow.github.io/AudioBubble/
+
+  All three are served by GitHub Pages from `docs/` on `main`.

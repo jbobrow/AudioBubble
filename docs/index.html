@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Audio Bubble</title>
+  <meta name="description" content="Hear the people you're with, clearly and instantly, even in loud places.">
+  <meta property="og:title" content="Audio Bubble">
+  <meta property="og:description" content="Hear the people you're with, clearly and instantly, even in loud places.">
+  <meta name="theme-color" content="#f4f3f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121318" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Audio Bubble</h1>
+      <p class="tagline">Hear the people you're with, even in loud places.</p>
+    </header>
+
+    <div class="stage">
+      <canvas id="bubbles" tabindex="0"
+              aria-label="Your audio bubble, with people floating nearby. Tap someone to invite them in; press Enter to invite the next person."></canvas>
+    </div>
+
+    <p class="readout" id="readout" aria-live="polite">Just you so far. Tap someone to invite them.</p>
+
+    <!-- When the app is live, replace this with:
+         <a class="download" href="https://apps.apple.com/app/idXXXXXXXXXX">Download Audio Bubble</a> -->
+    <span class="download soon">Coming soon to iPhone</span>
+
+    <nav class="footer-links" aria-label="Footer links">
+      <a href="privacy/">Privacy policy</a>
+      <a href="support/">Support</a>
+    </nav>
+    <p class="made-by">Made by <a href="https://github.com/jbobrow">Jonathan Bobrow</a></p>
+  </main>
+</body>
+</html>
