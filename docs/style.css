@@ -43,6 +43,14 @@ a { color: inherit; }
   text-align: center;
 }
 
+.app-icon {
+  display: block;
+  width: clamp(72px, 16vw, 104px);
+  height: auto;
+  margin: 0 auto 16px;
+  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.12));
+}
+
 h1 {
   font-size: clamp(34px, 7vw, 56px);
   font-weight: 700;
@@ -60,7 +68,7 @@ h1 {
 .stage {
   flex: 1;
   width: 100%;
-  min-height: 360px;
+  min-height: 320px;
   position: relative;
 }
 
