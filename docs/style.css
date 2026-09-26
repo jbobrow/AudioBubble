@@ -45,10 +45,10 @@ a { color: inherit; }
 
 .app-icon {
   display: block;
-  width: clamp(72px, 16vw, 104px);
+  width: clamp(36px, 8vw, 52px);
   height: auto;
-  margin: 0 auto 16px;
-  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.12));
+  margin: 0 auto 12px;
+  filter: drop-shadow(0 3px 7px rgb(0 0 0 / 0.12));
 }
 
 h1 {
