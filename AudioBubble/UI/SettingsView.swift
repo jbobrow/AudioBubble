@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Your name and color, debug mode, and the introduction again.
+/// Your name and color, debug mode, the introduction again, and About.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var hue = 0.58
     @State private var avatar = AvatarChoice.initial
     @State private var showsIntro = false
+    @State private var showsAbout = false
 
     var body: some View {
         NavigationStack {
@@ -40,11 +41,22 @@ struct SettingsView: View {
                 } footer: {
                     Text("Shows latency, connection and echo details in your bubble.".withoutWidows)
                 }
+
+                Section {
+                    SignatureButton { showsAbout = true }
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Background())
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showsAbout) {
+                AboutView(app: .audioBubble) {}
+                    .background(Background())
+                    .navigationBarTitleDisplayMode(.inline)
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { save(); dismiss() }
@@ -69,4 +81,15 @@ struct SettingsView: View {
     private func save() {
         model.updateIdentity(name: name, hue: hue, avatar: avatar)
     }
+}
+
+extension AboutApp {
+    static let audioBubble = AboutApp(
+        name: "Audio Bubble",
+        icon: Image("AppIconImage"),
+        description: "Hear the people you're with, clearly and instantly, even in loud places. "
+            + "Phone to phone, no network needed.",
+        website: URL(string: "https://audiobubble.jonbobrow.com"),
+        support: URL(string: "https://audiobubble.jonbobrow.com/support/"),
+        privacy: URL(string: "https://audiobubble.jonbobrow.com/privacy/"))
 }
