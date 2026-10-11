@@ -73,7 +73,7 @@ struct SettingsView: View {
         .fullScreenCover(isPresented: $showsIntro) {
             ZStack {
                 Background()
-                IntroPages(finishTitle: "Done") { showsIntro = false }
+                WelcomeView(isReplay: true) { showsIntro = false }
             }
         }
     }

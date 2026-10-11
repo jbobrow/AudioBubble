@@ -24,6 +24,8 @@ final class AppModel {
     private(set) var discovered: Set<UInt64> = []
     /// When we started looking, for the empty state.
     let searchStarted = Date()
+    /// Local Network access is off in Settings, so no one nearby can ever be found.
+    private(set) var localNetworkDenied = false
     /// The active mic mode, read only while in a bubble: touching capture APIs earlier would
     /// prompt for the microphone before the user has even finished the introduction.
     private(set) var micModeName = "Standard"
@@ -84,6 +86,7 @@ final class AppModel {
         transport.onControl = { [weak self] sender, message in self?.handle(message, from: sender) }
         transport.onDiscoveryChanged = { [weak self] peers in self?.discovered = peers }
         transport.onLinkChanged = { [weak self] peer, interface in self?.peers[peer]?.linkInterface = interface }
+        transport.onLocalNetworkDenied = { [weak self] denied in self?.localNetworkDenied = denied }
         session.onRouteChange = { [weak self] in
             self?.refreshHeadphones()
         }

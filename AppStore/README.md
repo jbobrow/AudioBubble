@@ -20,7 +20,9 @@ iPhone 18 Pro Max simulator.
 
 The people in them are made up. To retake them, build Debug and launch with
 `-screenshotDemo nearby|bubble|invite -assumeHeadphones` (see `AppModel.setUpDemo`).
-The introduction pages use `-introPage <0-3>` on a fresh install.
+The welcome pages use `-introPage <0-4>` on a fresh install. The plain `4-intro3` and
+`5-intro0` shots predate the current welcome (which now opens on the app icon and adds
+"Everyone brings an iPhone"), so retake them before uploading those.
 
 ## App Preview (video)
 
@@ -89,11 +91,25 @@ In `description.txt`, ready to paste.
   content" answers can stay No: audio goes only to people you've invited, in person.
 - **App Privacy:** Data Not Collected. Names, colors, avatars and audio travel directly between
   nearby phones and never reach you or a server.
-- **Review notes** (suggested):
-  > Audio Bubble connects nearby iPhones directly (Bonjour over peer-to-peer Wi-Fi) so people in
-  > the same place can talk through their headphones. Testing needs two iPhones with Wi-Fi on
-  > and headphones connected. Open the app on both, tap the other person's bubble, then tap
-  > Join. No account or sign-in is needed.
+- **Review notes** (paste into App Review Information → Notes). Version 1.0 (9) was rejected
+  under 2.1(a) because the reviewer, on one iPhone, saw "Looking for people nearby…" and took it
+  for endless loading. Lead with the two-iPhone requirement:
+  > Audio Bubble needs TWO OR MORE iPhones in the same room to do anything. It connects nearby
+  > iPhones directly (Bonjour over peer-to-peer Wi-Fi) so people in the same place can hear each
+  > other through their headphones. It has no server, account or sign-in. On a single iPhone the
+  > app correctly waits at "Looking for people nearby…" because there is no one to find. That
+  > screen now explains this, and the welcome pages say so too.
+  >
+  > To test:
+  > 1. Install on two iPhones. Turn Wi-Fi on for both (joining a network isn't required).
+  > 2. Open Audio Bubble on both, go through the welcome, and enter a name.
+  > 3. Allow Microphone and Local Network access when asked.
+  > 4. Each iPhone shows the other's colored bubble within a few seconds. Tap it to invite, then
+  >    tap Join on the other iPhone.
+  > 5. Connect headphones (AirPods or wired) to both to talk. Each person hears the others but
+  >    not themselves.
+  >
+  > A demo video of two iPhones in use: <link>
 - **Support URL:** https://jbobrow.github.io/AudioBubble/support/
 - **Privacy Policy URL:** https://jbobrow.github.io/AudioBubble/privacy/
 - **Marketing URL:** https://jbobrow.github.io/AudioBubble/

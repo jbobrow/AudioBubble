@@ -168,24 +168,71 @@ struct PeerBubble: View {
     }
 }
 
+/// No one nearby yet. Says plainly that it's waiting for another iPhone, not loading, and how to
+/// get someone there; or, with Local Network access off, how to turn it back on.
 struct EmptyNearbyView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
+    @State private var showsWelcome = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let waited = timeline.date.timeIntervalSince(model.searchStarted)
             VStack(spacing: 14) {
-                PulsingDot()
-                Text("Looking for people nearby…".withoutWidows)
-                    .font(.headline)
-                if waited > 5 {
-                    Text("Keep Wi-Fi on. No network needed.".withoutWidows)
+                if model.localNetworkDenied {
+                    Image(systemName: "network.slash")
+                        .font(.system(size: 40, weight: .light))
+                        .frame(height: 56)
+                    Text("Turn on Local Network".withoutWidows)
+                        .font(.headline)
+                    Text("Audio Bubble needs Local Network access to find people nearby. Turn it on for Audio Bubble in Settings.".withoutWidows)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .transition(.opacity)
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .padding(.top, 6)
+                } else {
+                    PulsingDot()
+                    Text("Looking for people nearby…".withoutWidows)
+                        .font(.headline)
+                    Text("Audio Bubble connects iPhones in the same place. Ask someone with you to open it on their iPhone, and they'll appear here.".withoutWidows)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        if let website = AboutApp.audioBubble.website {
+                            ShareLink(item: website,
+                                      message: Text("Get Audio Bubble so we can hear each other, even in loud places.")) {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                            }
+                        }
+                        Button("How it works") { showsWelcome = true }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .padding(.top, 6)
+                    Text("Not finding each other? Keep Wi-Fi on for both iPhones. You don't need to join a network.".withoutWidows)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 10)
+                        .opacity(waited > 10 ? 1 : 0)
+                        .accessibilityHidden(waited <= 10)
                 }
             }
-            .animation(.easeInOut, value: waited > 5)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 36)
+            .animation(.easeInOut, value: waited > 10)
+            .animation(.easeInOut, value: model.localNetworkDenied)
+        }
+        .fullScreenCover(isPresented: $showsWelcome) {
+            ZStack {
+                Background()
+                WelcomeView(isReplay: true) { showsWelcome = false }
+            }
         }
     }
 }

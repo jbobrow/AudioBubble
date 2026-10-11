@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Synchronization
+import dnssd
 import os
 
 /// Finds nearby Audio Bubble devices and exchanges UDP datagrams with them, directly.
@@ -43,6 +44,9 @@ nonisolated final class MeshTransport: @unchecked Sendable {
     var onDiscoveryChanged: (@MainActor (_ peers: Set<UInt64>) -> Void)?
     /// Called on the main queue with the interface our link to a peer uses (e.g. "awdl0", "en0").
     var onLinkChanged: (@MainActor (_ peer: UInt64, _ interface: String?) -> Void)?
+    /// Called on the main queue when Local Network access is turned off for the app, or back on.
+    /// While it's off, browsing waits forever and no one ever appears.
+    var onLocalNetworkDenied: (@MainActor (_ denied: Bool) -> Void)?
 
     init(localID: UInt64, streams: StreamTable) {
         self.localID = localID
@@ -120,15 +124,29 @@ nonisolated final class MeshTransport: @unchecked Sendable {
         browser.browseResultsChangedHandler = { [weak self] results, _ in self?.updateBrowseResults(results) }
         browser.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
-            if case let .failed(error) = state {
+            switch state {
+            case let .failed(error):
                 log.error("browser failed: \(String(describing: error)); restarting")
                 self.browser?.cancel()
                 self.browser = nil
                 queue.asyncAfter(deadline: .now() + 1) { [weak self] in self?.startBrowser() }
+            case let .waiting(error):
+                log.error("browser waiting: \(String(describing: error))")
+                if case .dns(DNSServiceErrorType(kDNSServiceErr_PolicyDenied)) = error {
+                    reportLocalNetworkDenied(true)
+                }
+            case .ready:
+                reportLocalNetworkDenied(false)
+            default: break
             }
         }
         browser.start(queue: queue)
         self.browser = browser
+    }
+
+    private func reportLocalNetworkDenied(_ denied: Bool) {
+        let callback = onLocalNetworkDenied
+        DispatchQueue.main.async { callback?(denied) }
     }
 
     // MARK: Discovery

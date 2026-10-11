@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// First launch: the introduction, then your name and color.
+/// First launch: the welcome, then your name and color.
 struct OnboardingView: View {
     @State private var showsIntro = !DebugLaunch.has("-nameStep")
 
     var body: some View {
         if showsIntro {
-            IntroPages { withAnimation { showsIntro = false } }
+            WelcomeView { withAnimation { showsIntro = false } }
                 .transition(.opacity)
         } else {
             NameStep()
