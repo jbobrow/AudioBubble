@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var showsSettings = DebugLaunch.has("-showSettings")
+    @State private var showsGetApp = DebugLaunch.has("-showGetApp")
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,6 +40,9 @@ struct HomeView: View {
             SettingsView()
                 .presentationDetents([.large])
         }
+        .sheet(isPresented: $showsGetApp) {
+            GetAppSheet()
+        }
     }
 
     private var header: some View {
@@ -63,6 +67,18 @@ struct HomeView: View {
                 .accessibilityHint("Change your name and color")
             }
             Spacer()
+            // The empty Nearby screen has its own, bigger QR code button.
+            if model.bubbleID != nil || !model.nearby.isEmpty {
+                Button { showsGetApp = true } label: {
+                    Image(systemName: "qrcode")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show QR code")
+                .accessibilityHint("A friend without Audio Bubble scans it to get the app")
+            }
             // Mic modes exist only while the mic is in use, i.e. in a bubble.
             if model.bubbleID != nil {
                 Button(action: showMicModes) {
@@ -174,6 +190,7 @@ struct EmptyNearbyView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     @State private var showsWelcome = false
+    @State private var showsGetApp = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
@@ -198,15 +215,12 @@ struct EmptyNearbyView: View {
                     PulsingDot()
                     Text("Looking for people nearby…".withoutWidows)
                         .font(.headline)
-                    Text("Audio Bubble connects iPhones in the same place. Ask someone with you to open it on their iPhone, and they'll appear here.".withoutWidows)
+                    Text("Audio Bubble connects iPhones in the same place. Ask someone with you to open it on their iPhone, and they'll appear here. No app yet? They can scan your QR code.".withoutWidows)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 10) {
-                        if let website = AboutApp.audioBubble.website {
-                            ShareLink(item: website,
-                                      message: Text("Get Audio Bubble so we can hear each other, even in loud places.")) {
-                                Label("Share", systemImage: "square.and.arrow.up")
-                            }
+                        Button { showsGetApp = true } label: {
+                            Label("Show QR code", systemImage: "qrcode")
                         }
                         Button("How it works") { showsWelcome = true }
                     }
@@ -227,6 +241,9 @@ struct EmptyNearbyView: View {
             .padding(.horizontal, 36)
             .animation(.easeInOut, value: waited > 10)
             .animation(.easeInOut, value: model.localNetworkDenied)
+        }
+        .sheet(isPresented: $showsGetApp) {
+            GetAppSheet()
         }
         .fullScreenCover(isPresented: $showsWelcome) {
             ZStack {

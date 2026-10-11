@@ -155,3 +155,16 @@ a.download:active { transform: scale(0.97); }
 .doc p, .doc li { margin-top: 10px; font-size: 17px; text-wrap: pretty; }
 .doc ul { padding-left: 1.2em; }
 .doc a:not(.back) { color: var(--blue); }
+
+/* Get: where the app's QR code leads */
+
+.page.get { justify-content: center; }
+.get .app-icon { width: 96px; margin-bottom: 18px; }
+.get-note {
+  margin-top: 28px;
+  max-width: 32ch;
+  font-size: 17px;
+  text-wrap: balance;
+}
+.get .download { margin-top: 26px; }
+[hidden] { display: none !important; }
