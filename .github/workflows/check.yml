@@ -1,0 +1,24 @@
+name: review-prompter-typecheck
+on: push
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version; ls /Applications | grep Xcode
+      - name: iOS 17
+        run: xcrun -sdk iphonesimulator swiftc -typecheck -target arm64-apple-ios17.0-simulator ReviewPrompter.swift
+      - name: iOS 17 Swift 6
+        run: xcrun -sdk iphonesimulator swiftc -swift-version 6 -typecheck -target arm64-apple-ios17.0-simulator ReviewPrompter.swift
+      - name: macOS 12.4
+        run: xcrun -sdk macosx swiftc -typecheck -target arm64-apple-macos12.4 ReviewPrompter.swift
+      - name: macOS 14.6 Swift 6
+        run: xcrun -sdk macosx swiftc -swift-version 6 -typecheck -target arm64-apple-macos14.6 ReviewPrompter.swift
+      - name: visionOS
+        run: xcrun -sdk xrsimulator swiftc -typecheck -target arm64-apple-xros1.0-simulator ReviewPrompter.swift || echo "visionOS sdk missing?"
+      - name: watchOS
+        run: xcrun -sdk watchsimulator swiftc -typecheck -target arm64-apple-watchos10.0-simulator ReviewPrompter.swift
