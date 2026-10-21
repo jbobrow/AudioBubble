@@ -60,6 +60,9 @@ final class AppModel {
     @ObservationIgnored private var heartbeat: Task<Void, Never>?
     @ObservationIgnored private var seenMessageIDs: Set<UUID> = []
     @ObservationIgnored private var lastHadCompany = Date()
+    /// When this bubble first, and last, had other people in it: how long you talked, for the review prompt.
+    @ObservationIgnored private var talkStarted: Date?
+    @ObservationIgnored private var talkLastSeen = Date()
     @ObservationIgnored private var audioActive = false
     @ObservationIgnored private var myAvatarVersion: UInt32?
     @ObservationIgnored private var myAvatarChunks: [Data] = []
@@ -75,6 +78,8 @@ final class AppModel {
     static let resendDelays: [Duration] = [.zero, .milliseconds(250), .milliseconds(750), .milliseconds(1_500)]
     static let inviteLifetime: TimeInterval = 30
     static let aloneTimeout: TimeInterval = 15
+    /// A bubble with people in it for this long counts as a good one.
+    static let goodBubbleDuration: TimeInterval = 120
 
     init() {
         identity = Identity.load()
@@ -335,6 +340,7 @@ final class AppModel {
     /// Invites someone into your bubble (or a new one, if you aren't in one yet).
     func invite(_ peer: UInt64) {
         guard outgoingInvites[peer] == nil, requireHeadphones() else { return }
+        ReviewPrompter.shared.cancelPendingRequest()
         let invite = OutgoingInvite(id: UUID(), bubble: bubbleID ?? UUID(), sent: Date())
         outgoingInvites[peer] = invite
         repeatSend(.invite(.init(id: invite.id, bubble: invite.bubble)), to: peer)
@@ -360,6 +366,17 @@ final class AppModel {
         outgoingInvites = [:]
         sendHellos()
         reconcile()
+        bubbleDidEnd()
+    }
+
+    /// The bubble is over (you left, or everyone else did) and its audio has stopped. If you talked
+    /// with people for a while, the app did its job: a calm moment to maybe ask for a review. Never
+    /// during a live bubble, and not while an invite is waiting for an answer.
+    private func bubbleDidEnd() {
+        defer { talkStarted = nil }
+        guard demoScene == nil, let talkStarted,
+              talkLastSeen.timeIntervalSince(talkStarted) >= Self.goodBubbleDuration else { return }
+        ReviewPrompter.shared.recordSignificantEvent(promptIfAppropriate: incomingInvite == nil)
     }
 
     func toggleMute() {
@@ -509,6 +526,7 @@ final class AppModel {
     private func join(_ bubble: UUID) {
         bubbleID = bubble
         lastHadCompany = Date()
+        ReviewPrompter.shared.cancelPendingRequest()
         sendHellos()
         reconcile()
     }
@@ -519,6 +537,12 @@ final class AppModel {
         streams.setMembers(memberIDs)
         transport.setAudioMembers(memberIDs)
 
+        if bubbleID != nil, !memberIDs.isEmpty {
+            if talkStarted == nil { talkStarted = Date() }
+            talkLastSeen = Date()
+        }
+
+        var everyoneLeft = false
         if bubbleID != nil {
             if !memberIDs.isEmpty || !outgoingInvites.isEmpty {
                 lastHadCompany = Date()
@@ -526,8 +550,10 @@ final class AppModel {
                 // Everyone else left.
                 bubbleID = nil
                 sendHellos()
+                everyoneLeft = true
             }
         }
+        defer { if everyoneLeft { bubbleDidEnd() } }
 
         // Never from the speaker: without headphones your audio is paused, both ways.
         let shouldRun = bubbleID != nil && !memberIDs.isEmpty && headphonesConnected && demoScene == nil
@@ -584,6 +610,7 @@ final class AppModel {
                 repeatSend(.reply(.init(id: invite.id, bubble: invite.bubble, accepted: true)), to: sender)
             } else {
                 incomingInvite = IncomingInvite(id: invite.id, from: sender, bubble: invite.bubble, received: Date())
+                ReviewPrompter.shared.cancelPendingRequest()
             }
         case let .reply(reply):
             guard seenMessageIDs.insert(reply.id).inserted else { return }
