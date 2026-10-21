@@ -9,6 +9,7 @@ struct AudioBubbleApp: App {
             RootView()
                 .environment(model)
                 .preferredColorScheme(.dark)
+                .tracksReviewEligibility()
         }
     }
 }
