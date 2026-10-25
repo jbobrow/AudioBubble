@@ -110,6 +110,57 @@ In `description.txt`, ready to paste.
   >    not themselves.
   >
   > A demo video of two iPhones in use: <link>
+  >
+  > BACKGROUND AUDIO (UIBackgroundModes: audio): Audio Bubble is a live voice intercom. While
+  > you're in a bubble it records your microphone and plays the other people's voices in your
+  > headphones continuously, and it must keep doing so with the iPhone locked or in a pocket, or
+  > while you use another app (it's made for concerts, bars and other loud places). Without the
+  > audio background mode iOS suspends the app and the conversation cuts off within seconds.
+  > Audio runs only while you're in a bubble with at least one other person and headphones are
+  > connected; outside a bubble the app releases the microphone and audio session, and it never
+  > plays audio in the background otherwise. To see it: start a bubble as above, then press the
+  > Side button or swipe to the Home Screen on one iPhone and keep talking on the other. You
+  > still hear each other, and the orange microphone indicator stays on.
+  >
+  > A screen recording of background audio on a physical device: <link>
+
+  Version 1.0 (10) was then rejected under **2.5.4** ("we are unable to play any audible content
+  when the app is running in the background"): the reviewer couldn't get into a bubble, so the
+  app never had audio to keep playing. The audio mode stays, since the app's core feature
+  needs it. Reply in App Store Connect with the text below and the screen recording, and keep
+  the paragraph above in the notes for future submissions.
+
+  **The screen recording.** Two iPhones, each with headphones, in a bubble. Record on iPhone A
+  (Control Center → long-press Screen Recording → Microphone **On**, so the recording has
+  sound). Show the bubble, then go to the Home Screen and open another app (Settings, say)
+  while the person on iPhone B keeps talking, then lock iPhone A and unlock it again. The orange
+  mic indicator stays on throughout. If iPhone A's recording doesn't capture the call audio,
+  film both phones with a third camera instead so the voice is audible.
+
+  **Reply to App Review:**
+  > Thank you for the review. Audio Bubble does have a feature that requires persistent
+  > background audio, and a screen recording on a physical device is attached.
+  >
+  > Audio Bubble is a live voice intercom for people in the same place. Each person uses their
+  > own iPhone and headphones; nearby iPhones connect directly, and while you're in a "bubble"
+  > the app continuously records your microphone and plays the other members' voices in your
+  > headphones. People use it at concerts, bars and other loud places, usually with the iPhone
+  > locked in a pocket, so the conversation has to keep going in the background, just like a
+  > phone call. Without the audio background mode iOS suspends the app and the audio stops
+  > within seconds.
+  >
+  > Audio only runs while you're in a bubble with at least one other person and with headphones
+  > connected. Outside a bubble the app deactivates its audio session and releases the
+  > microphone, so it never keeps itself running in the background.
+  >
+  > To test, it needs two iPhones (one iPhone has no one to talk to): install on both, go
+  > through the welcome, allow Microphone and Local Network access, and connect headphones to
+  > each. Tap the other iPhone's bubble to invite it, then tap Join on the other iPhone. Now go
+  > to the Home Screen or lock one iPhone and keep talking on the other: you still hear each
+  > other, and the orange microphone indicator stays on.
+  >
+  > The recording shows exactly this, and we've added the explanation to the App Review notes
+  > for future submissions.
 - **Support URL:** https://jbobrow.github.io/AudioBubble/support/
 - **Privacy Policy URL:** https://jbobrow.github.io/AudioBubble/privacy/
 - **Marketing URL:** https://jbobrow.github.io/AudioBubble/
