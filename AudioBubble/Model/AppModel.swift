@@ -561,7 +561,10 @@ final class AppModel {
 
         // Never from the speaker: without headphones your audio is paused, both ways.
         let shouldRun = bubbleID != nil && !memberIDs.isEmpty && headphonesConnected && demoScene == nil
-        guard shouldRun != audioActive else { return }
+        guard shouldRun != audioActive else {
+            if audioActive { session.restartIfNeeded() }
+            return
+        }
         audioActive = shouldRun
         if shouldRun {
             session.setActive(true)

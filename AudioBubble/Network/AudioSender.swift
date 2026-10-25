@@ -8,6 +8,11 @@ nonisolated final class AudioSender: @unchecked Sendable {
     private let transport: MeshTransport
     private let running = Atomic<Bool>(false)
     private let muted = Atomic<Bool>(false)
+    /// Bumped by every `start`, so a thread from an earlier run stops even if `running` is true again.
+    private let generation = Atomic<Int>(0)
+    /// Held by the running thread: a new run waits for the old one to finish, so the capture ring
+    /// and `sequence` only ever have one reader.
+    private let runLock = NSLock()
     private var thread: Thread?
     private var sequence: UInt32 = 0
 
@@ -26,7 +31,8 @@ nonisolated final class AudioSender: @unchecked Sendable {
     func start() {
         guard !running.load(ordering: .acquiring) else { return }
         running.store(true, ordering: .releasing)
-        let thread = Thread { [self] in run() }
+        let id = generation.wrappingAdd(1, ordering: .acquiringAndReleasing).newValue
+        let thread = Thread { [self] in run(id) }
         thread.name = "audio-bubble.sender"
         thread.qualityOfService = .userInteractive
         thread.start()
@@ -39,7 +45,12 @@ nonisolated final class AudioSender: @unchecked Sendable {
         thread = nil
     }
 
-    private func run() {
+    private func run(_ id: Int) {
+        runLock.lock()
+        defer { runLock.unlock() }
+        func isCurrent() -> Bool {
+            running.load(ordering: .acquiring) && generation.load(ordering: .acquiring) == id
+        }
         let frame = AudioFormat.frameSamples
         let floats = UnsafeMutablePointer<Float>.allocate(capacity: frame)
         let pcm = UnsafeMutablePointer<Int16>.allocate(capacity: frame)
@@ -49,9 +60,9 @@ nonisolated final class AudioSender: @unchecked Sendable {
         }
         var packet = Data(count: WireProtocol.audioPacketSize)
 
-        while running.load(ordering: .acquiring) {
+        while isCurrent() {
             _ = engine.captureSignal.wait(timeout: .now() + .milliseconds(100))
-            while running.load(ordering: .relaxed), engine.captureRing.availableToRead >= frame {
+            while isCurrent(), engine.captureRing.availableToRead >= frame {
                 engine.captureRing.read(into: floats, count: frame)
                 let isMuted = muted.load(ordering: .relaxed)
                 if !isMuted {

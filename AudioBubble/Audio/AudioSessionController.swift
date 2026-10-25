@@ -10,6 +10,8 @@ final class AudioSessionController {
     private let log = Logger(subsystem: "com.jonbobrow.AudioBubble", category: "audio")
     private var observers: [NSObjectProtocol] = []
     private var wantsAudio = false
+    /// Between an interruption's beginning and end (a call, Siri, an alarm): don't fight it.
+    private var interrupted = false
     /// Called on the main actor when headphones are connected or disconnected.
     var onRouteChange: (() -> Void)?
 
@@ -31,7 +33,11 @@ final class AudioSessionController {
         // there, or headphones come back), so audio that should be running but isn't restarts
         // when the app is opened again.
         observers.append(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.restartIfNeeded() }
+            MainActor.assumeIsolated {
+                // An interruption's end isn't guaranteed to arrive; being opened again ends it.
+                self?.interrupted = false
+                self?.restartIfNeeded()
+            }
         })
     }
 
@@ -76,14 +82,21 @@ final class AudioSessionController {
 
     private func handleInterruption(_ type: AVAudioSession.InterruptionType?) {
         switch type {
-        case .began: engine.stop()
-        case .ended: if wantsAudio { start() }
+        case .began:
+            interrupted = true
+            engine.stop()
+        case .ended:
+            interrupted = false
+            if wantsAudio { start() }
         default: break
         }
     }
 
-    private func restartIfNeeded() {
-        if wantsAudio && !engine.isRunning { start() }
+    /// Starts audio that should be running but isn't: a start that failed (e.g. joining during a
+    /// FaceTime call) or one iOS refused in the background. Called when the app becomes active and
+    /// once a second while in a bubble.
+    func restartIfNeeded() {
+        if wantsAudio && !interrupted && !engine.isRunning { start() }
     }
 
     private func handleMediaServicesReset() {
