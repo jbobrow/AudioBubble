@@ -351,6 +351,8 @@ final class AppModel {
     func acceptInvite() {
         guard let invite = incomingInvite, requireHeadphones() else { return }
         incomingInvite = nil
+        // If you had invited them too, their answer to that no longer matters: you're joining theirs.
+        outgoingInvites[invite.from] = nil
         repeatSend(.reply(.init(id: invite.id, bubble: invite.bubble, accepted: true)), to: invite.from)
         join(invite.bubble)
     }
@@ -536,6 +538,8 @@ final class AppModel {
         let memberIDs = Set(members.map(\.id))
         streams.setMembers(memberIDs)
         transport.setAudioMembers(memberIDs)
+        // An invite from someone who's already in your bubble would only split it.
+        if let invite = incomingInvite, memberIDs.contains(invite.from) { incomingInvite = nil }
 
         if bubbleID != nil, !memberIDs.isEmpty {
             if talkStarted == nil { talkStarted = Date() }
@@ -617,6 +621,8 @@ final class AppModel {
             guard let pending = outgoingInvites[sender], pending.id == reply.id else { return }
             outgoingInvites[sender] = nil
             if reply.accepted && bubbleID == nil {
+                // They may have invited you at the same moment: joining one bubble answers both.
+                if incomingInvite?.from == sender { incomingInvite = nil }
                 join(reply.bubble)
             } else {
                 reconcile()
@@ -644,7 +650,8 @@ final class AppModel {
         peer.avatarVersion = hello.avatarVersion
         if let version = hello.avatarVersion { fetchAvatarIfNeeded(version, from: sender) }
 
-        if let echo = hello.echoTime, let hold = hello.echoHold, now > echo &+ hold {
+        // `echoTime` is our own clock, so it's never ahead of `now`; anything else is garbage.
+        if let echo = hello.echoTime, let hold = hello.echoHold, echo <= now, hold < now - echo {
             let rtt = Double(now - echo - hold) / 1000
             if rtt < 2_000 {
                 peer.rttMilliseconds = peer.rttMilliseconds.map { $0 * 0.8 + rtt * 0.2 } ?? rtt

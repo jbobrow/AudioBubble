@@ -1,4 +1,5 @@
 import AVFoundation
+import UIKit
 import os
 
 /// Owns the shared AVAudioSession: voice-chat mode at 48 kHz with a 5 ms I/O buffer, and keeps the
@@ -25,6 +26,12 @@ final class AudioSessionController {
         })
         observers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: session, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.handleMediaServicesReset() }
+        })
+        // iOS won't reactivate a voice session from the background (after a call or Siri ends
+        // there, or headphones come back), so audio that should be running but isn't restarts
+        // when the app is opened again.
+        observers.append(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartIfNeeded() }
         })
     }
 
@@ -73,6 +80,10 @@ final class AudioSessionController {
         case .ended: if wantsAudio { start() }
         default: break
         }
+    }
+
+    private func restartIfNeeded() {
+        if wantsAudio && !engine.isRunning { start() }
     }
 
     private func handleMediaServicesReset() {
